@@ -73,3 +73,5 @@ Thumbs.db
 
 # Benchmark build output
 GhostTracker/scripts/benchmarks/.build/
+__pycache__/
+*.pyc

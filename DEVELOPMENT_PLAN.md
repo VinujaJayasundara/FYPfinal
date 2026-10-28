@@ -13,7 +13,7 @@ Companion file: [THESIS_CORRECTIONS.md](THESIS_CORRECTIONS.md) (what to change i
 |---|---|---|---|---|
 | 0 | Git snapshot | 28 Oct | No | ✅ Done (`5638847`) |
 | 1 | Anti-entropy gossip over the Wi-Fi relay | 28 Oct | No | ✅ Done (`fc9e8a0`) |
-| A | Real numbers and figures for the thesis | 29 Oct | No | ⬜ |
+| A | Real numbers and figures for the thesis | 29 Oct | No | ✅ |
 | B | GPS pipeline: 1 Hz, 10 s pace window, 10 m ghost Δt | 31 Oct – 1 Nov | No | ⬜ |
 | C | Bluetooth transport (dual role, GATT, frames) | 2 – 8 Nov | **Yes (2 Android)** | ⬜ |
 | D | Fairness modules + the thesis unit tests | 9 – 10 Nov | No | ⬜ |
