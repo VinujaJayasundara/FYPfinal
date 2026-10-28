@@ -1,0 +1,39 @@
+NPI DEMOGRAPHIC PARITY TEST (held-out test runners)
+============================================================
+Train: 160 runners, 960 sessions
+Test:  40 runners, 240 sessions
+Sigma (train residual SE): 24.3203 s/km
+Alpha: 0.05
+
+AGE COHORTS
+------------------------------------------------------------
+  Raw pace (s/km)
+    18-29      n= 54  mean= 349.598  sd= 29.613
+    30-44      n= 90  mean= 390.132  sd= 41.657
+    45-59      n= 66  mean= 409.247  sd= 31.976
+    60-75      n= 30  mean= 435.870  sd= 38.905
+    ANOVA:  F = 44.17, p = 1.082e-22  -> reject H0 (means differ)
+    Levene: W = 3.34, p = 0.02009  -> variances differ
+
+  NPI
+    18-29      n= 54  mean=  -0.015  sd=  0.832
+    30-44      n= 90  mean=  -0.051  sd=  1.022
+    45-59      n= 66  mean=   0.027  sd=  1.052
+    60-75      n= 30  mean=   0.027  sd=  0.916
+    ANOVA:  F = 0.10, p = 0.9615  -> retain H0 (no significant difference)
+    Levene: W = 1.05, p = 0.3711  -> equal variances
+
+SEX
+------------------------------------------------------------
+  Raw pace (s/km)
+    Male       n=108  mean= 388.310  sd= 50.186
+    Female     n=132  mean= 394.993  sd= 40.408
+    ANOVA:  F = 1.31, p = 0.2542  -> retain H0 (no significant difference)
+    Levene: W = 4.57, p = 0.03351  -> variances differ
+
+  NPI
+    Male       n=108  mean=   0.161  sd=  1.006
+    Female     n=132  mean=  -0.153  sd=  0.925
+    ANOVA:  F = 6.30, p = 0.01275  -> reject H0 (means differ)
+    Levene: W = 1.91, p = 0.1685  -> equal variances
+

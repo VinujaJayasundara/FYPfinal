@@ -1,0 +1,11 @@
+{
+  "name": "fyp",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix GhostTrackerApp start",
+    "web": "npm --prefix GhostTrackerApp run web",
+    "android": "npm --prefix GhostTrackerApp run android",
+    "ios": "npm --prefix GhostTrackerApp run ios"
+  }
+}
