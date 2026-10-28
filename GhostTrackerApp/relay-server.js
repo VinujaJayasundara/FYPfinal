@@ -89,6 +89,18 @@ wss.on('connection', (ws) => {
         return;
       }
 
+      // Anti-entropy gossip (hash / digest / frame) — relay to all other
+      // clients; each client ignores messages addressed to someone else.
+      // Hashes repeat every 2.5 s, so only digests and frames are logged.
+      if (msg.type === 'GOSSIP') {
+        if (msg.message && msg.message.kind !== 'hash') {
+          const info = clients.get(ws);
+          console.log(`  🔁 Gossip ${msg.message.kind} from ${info?.alias} (${raw.length} bytes)`);
+        }
+        broadcast(ws, raw.toString());
+        return;
+      }
+
       // Live position — relay to all other clients (no logging to avoid spam)
       if (msg.type === 'LIVE_POSITION') {
         broadcast(ws, raw.toString());

@@ -13,6 +13,7 @@
  *   p2p.disconnect();
  */
 
+import type { GossipMessage } from '../../../GhostTracker/src/core/crdt';
 import { SyncPayload } from './sync';
 
 export type P2PStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -56,6 +57,7 @@ export class P2PSyncService {
   onPeerListReceived: ((peers: PeerInfo[]) => void) | null = null;
   onPayloadReceived: ((payload: SyncPayload) => void) | null = null;
   onLivePositionReceived: ((pos: LivePosition) => void) | null = null;
+  onGossipReceived: ((message: GossipMessage) => void) | null = null;
   onLog: ((message: string) => void) | null = null;
 
   // ── Getters ─────────────────────────────────────────────
@@ -203,6 +205,12 @@ export class P2PSyncService {
     this.ws.send(JSON.stringify({ type: 'LIVE_POSITION', ...pos }));
   }
 
+  // ── Send Gossip Message ─────────────────────────────────
+
+  sendGossip(message: GossipMessage): void {
+    this.send({ type: 'GOSSIP', message });
+  }
+
   // ── Internal ────────────────────────────────────────────
 
   private send(data: any): void {
@@ -271,6 +279,12 @@ export class P2PSyncService {
           this.onLivePositionReceived?.(pos);
           break;
         }
+
+        case 'GOSSIP':
+          if (msg.message) {
+            this.onGossipReceived?.(msg.message as GossipMessage);
+          }
+          break;
 
         default:
           this.log(`❓ Unknown relay message: ${msg.type}`);

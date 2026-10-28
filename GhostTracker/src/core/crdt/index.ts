@@ -18,3 +18,5 @@ export { mergeWithRemote, verifyConvergence, leaderboardKey, buildLeaderboardSet
 export type { MergeResult } from './mergeEngine';
 export { createDigest, computeDelta, peerIsUpToDate, stateHash, hashesEqual } from './antiEntropy';
 export type { SyncDigest } from './antiEntropy';
+export { GossipSession, bytesToBase64, base64ToBytes } from './gossipSession';
+export type { GossipMessage, GossipStore, GossipEvent, GossipOptions } from './gossipSession';

@@ -3,8 +3,10 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, TextInp
 import { useProfile } from '../context/ProfileContext';
 import { useRun } from '../context/RunContext';
 import { getCRDTState, getLeaderboard, saveSyncState } from '../data/database';
-import { SyncPayload, mergeSyncPayloads } from '../core/sync';
+import { SyncPayload, mergeSyncPayloads, toCoreEntry, toDBPayload } from '../core/sync';
 import { P2PSyncService, P2PStatus } from '../core/p2pSync';
+import { GossipSession, GossipEvent } from '../../../GhostTracker/src/core/crdt';
+import { GOSSIP_INTERVAL_MS } from '../../../GhostTracker/src/utils/constants';
 import { RUNNER_PROFILES } from '../data/mockData';
 
 const C = {
@@ -43,6 +45,11 @@ export function SyncTab() {
   const [peerCount, setPeerCount] = useState(0);
   const [syncedPeers, setSyncedPeers] = useState<any[]>([]);
 
+  // ── Anti-entropy gossip (automatic sync while connected) ──
+  const gossipRef = useRef<GossipSession | null>(null);
+  const peerAliasesRef = useRef<Record<string, string>>({});
+  const [gossipStatus, setGossipStatus] = useState('Idle');
+
   // ── Load Synced Peers ──────────────────────────────────
   useEffect(() => {
     (async () => {
@@ -69,16 +76,26 @@ export function SyncTab() {
     service.onPeerCountChange = (count) => setPeerCount(count);
 
     service.onPeerJoined = (peer) => {
+      peerAliasesRef.current[peer.deviceId] = peer.alias;
       addLog(`🎉 ${peer.alias} joined the sync room!`);
     };
 
+    service.onPeerListReceived = (peers) => {
+      peers.forEach(p => { peerAliasesRef.current[p.deviceId] = p.alias; });
+    };
+
     service.onPeerLeft = (peer) => {
+      gossipRef.current?.forgetPeer(peer.deviceId);
       addLog(`👋 ${peer.alias} left the sync room.`);
     };
 
     service.onPayloadReceived = async (payload) => {
       addLog(`📡 Received real sync payload from peer: ${payload.deviceId}`);
-      await handleIncomingPayload(payload);
+      await handleIncomingRef.current(payload, { notify: true });
+    };
+
+    service.onGossipReceived = (message) => {
+      gossipRef.current?.receive(message);
     };
 
     p2pRef.current = service;
@@ -120,7 +137,10 @@ export function SyncTab() {
     };
   };
 
-  const handleIncomingPayload = async (remotePayload: SyncPayload) => {
+  const handleIncomingPayload = async (
+    remotePayload: SyncPayload,
+    { notify }: { notify: boolean } = { notify: true },
+  ) => {
     try {
       const localCRDT = await getCRDTState();
       const localLeaderboard = await getLeaderboard();
@@ -138,7 +158,7 @@ export function SyncTab() {
         }
       });
       
-      if (bestRII > -1) {
+      if (notify && bestRII > -1) {
         const msg = `${peerAlias} synced their stats!\n\nTheir PR (RII): ${bestRII.toFixed(2)}\nTheir NPI: ${peerNPI.toFixed(2)}\n\nCompare scores to see if you're falling behind!`;
         if (Platform.OS === 'web') {
           window.alert(msg);
@@ -168,6 +188,68 @@ export function SyncTab() {
       addLog(`❌ Sync Error: ${e}`);
     }
   };
+
+  // Long-lived callbacks (relay service, gossip session) call through this
+  // ref so they always use the latest profile and render state.
+  const handleIncomingRef = useRef(handleIncomingPayload);
+  handleIncomingRef.current = handleIncomingPayload;
+
+  // ── Gossip Session Lifecycle ───────────────────────────
+  // While connected to the relay, run anti-entropy rounds every 2.5 s:
+  // hash broadcast → digest on mismatch → delta in ≤512-byte binary frames.
+  useEffect(() => {
+    const service = p2pRef.current;
+    if (p2pStatus !== 'connected' || !service || !profile.deviceId) {
+      return;
+    }
+
+    const aliasOf = (id: string) => peerAliasesRef.current[id] ?? id.substring(0, 8);
+    const onEvent = (e: GossipEvent) => {
+      switch (e.type) {
+        case 'mismatch':
+          setGossipStatus(`Syncing with ${aliasOf(e.peer)}...`);
+          addLog(`🔁 Gossip: state differs from ${aliasOf(e.peer)}, exchanging digests`);
+          break;
+        case 'in-sync':
+          setGossipStatus(`In sync with ${aliasOf(e.peer)}`);
+          addLog(`✅ Gossip: in sync with ${aliasOf(e.peer)}`);
+          break;
+        case 'delta-sent':
+          addLog(`📤 Gossip: sent ${e.entries} entr${e.entries === 1 ? 'y' : 'ies'} to ${aliasOf(e.peer)} (${e.bytes} B in ${e.frames} frame${e.frames === 1 ? '' : 's'})`);
+          break;
+        case 'delta-applied':
+          addLog(`📥 Gossip: received ${e.entries} entr${e.entries === 1 ? 'y' : 'ies'} from ${aliasOf(e.peer)}`);
+          break;
+        case 'error':
+          addLog(`❌ Gossip error: ${e.error}`);
+          break;
+      }
+    };
+
+    const session = new GossipSession(
+      {
+        deviceId: profile.deviceId,
+        load: async () => ({
+          crdtState: await getCRDTState(),
+          leaderboard: (await getLeaderboard()).map(toCoreEntry),
+        }),
+        apply: delta => handleIncomingRef.current(toDBPayload(delta), { notify: false }),
+      },
+      message => service.sendGossip(message),
+      { onEvent },
+    );
+
+    gossipRef.current = session;
+    session.start();
+    setGossipStatus('Running');
+    addLog(`🔁 Anti-entropy gossip started (every ${GOSSIP_INTERVAL_MS / 1000} s)`);
+
+    return () => {
+      session.stop();
+      gossipRef.current = null;
+      setGossipStatus('Idle');
+    };
+  }, [p2pStatus, profile.deviceId, addLog]);
 
   // ── P2P Actions ────────────────────────────────────────
 
@@ -342,6 +424,10 @@ export function SyncTab() {
           </>
         ) : (
           <>
+            <View style={styles.gossipBox}>
+              <Text style={styles.identityLabel}>AUTO-SYNC (ANTI-ENTROPY GOSSIP · {GOSSIP_INTERVAL_MS / 1000} s)</Text>
+              <Text style={styles.gossipStatus}>{gossipStatus}</Text>
+            </View>
             <TouchableOpacity
               style={[styles.button, styles.syncBtn, isSyncing && styles.buttonDisabled]}
               onPress={broadcastToP2P}
@@ -450,6 +536,8 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   statusDot: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
   statusText: { fontSize: 14, fontWeight: '600' },
+  gossipBox: { backgroundColor: C.surfaceElevated, padding: 12, borderRadius: 8, marginBottom: 12 },
+  gossipStatus: { color: C.teal, fontSize: 14, fontWeight: '600' },
 
   // Input
   inputLabel: { color: '#8E8E93', fontSize: 11, fontWeight: '600', letterSpacing: 0.5, marginBottom: 6 },
