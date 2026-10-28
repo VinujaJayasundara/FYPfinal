@@ -1,0 +1,393 @@
+{
+  "benchmark": "A4 simulated anti-entropy gossip convergence (real GossipSession, in-memory network)",
+  "caveat": "Protocol simulation. Excludes BLE connection set-up, air time and retransmission; on-device times will be higher.",
+  "machine": {
+    "cpu": "Intel(R) Core(TM) i5-10200H CPU @ 2.40GHz",
+    "cores": 8,
+    "ramGb": 16,
+    "os": "Windows_NT 10.0.26300 (x64)",
+    "node": "v24.6.0",
+    "measuredAt": "2026-10-28T08:54:16.692Z"
+  },
+  "config": {
+    "nodeCounts": [
+      2,
+      4,
+      6,
+      8
+    ],
+    "lossRates": [
+      0,
+      0.15,
+      0.3
+    ],
+    "seedsPerCell": 100,
+    "entriesPerNode": 3,
+    "roundIntervalMs": 2500,
+    "maxRounds": 200,
+    "lossModel": "independent per message per receiver"
+  },
+  "steadyStateBytesPerRound": "nodes × 16 (one state hash each)",
+  "cells": [
+    {
+      "nodes": 2,
+      "lossPct": 0,
+      "runs": 100,
+      "converged": 100,
+      "rounds": {
+        "mean": 1,
+        "p50": 1,
+        "p95": 1,
+        "p99": 1,
+        "max": 1
+      },
+      "secondsUpperBound": {
+        "mean": 2.5,
+        "p50": 2.5,
+        "p95": 2.5,
+        "p99": 2.5,
+        "max": 2.5
+      },
+      "totalBytesUntilConverged": {
+        "mean": 1290,
+        "p99": 1290
+      },
+      "meanMessages": {
+        "hash": 2,
+        "digest": 2,
+        "frame": 2
+      },
+      "errors": 0
+    },
+    {
+      "nodes": 2,
+      "lossPct": 15,
+      "runs": 100,
+      "converged": 100,
+      "rounds": {
+        "mean": 2.12,
+        "p50": 2,
+        "p95": 5,
+        "p99": 5,
+        "max": 6
+      },
+      "secondsUpperBound": {
+        "mean": 5.3,
+        "p50": 5,
+        "p95": 12.5,
+        "p99": 12.5,
+        "max": 15
+      },
+      "totalBytesUntilConverged": {
+        "mean": 2070.24,
+        "p99": 4406
+      },
+      "meanMessages": {
+        "hash": 4.24,
+        "digest": 3.6,
+        "frame": 2.36
+      },
+      "errors": 0
+    },
+    {
+      "nodes": 2,
+      "lossPct": 30,
+      "runs": 100,
+      "converged": 100,
+      "rounds": {
+        "mean": 3.98,
+        "p50": 3,
+        "p95": 9,
+        "p99": 15,
+        "max": 15
+      },
+      "secondsUpperBound": {
+        "mean": 9.95,
+        "p50": 7.5,
+        "p95": 22.5,
+        "p99": 37.5,
+        "max": 37.5
+      },
+      "totalBytesUntilConverged": {
+        "mean": 3061.83,
+        "p99": 9425
+      },
+      "meanMessages": {
+        "hash": 7.96,
+        "digest": 5.71,
+        "frame": 2.83
+      },
+      "errors": 0
+    },
+    {
+      "nodes": 4,
+      "lossPct": 0,
+      "runs": 100,
+      "converged": 100,
+      "rounds": {
+        "mean": 1,
+        "p50": 1,
+        "p95": 1,
+        "p99": 1,
+        "max": 1
+      },
+      "secondsUpperBound": {
+        "mean": 2.5,
+        "p50": 2.5,
+        "p95": 2.5,
+        "p99": 2.5,
+        "max": 2.5
+      },
+      "totalBytesUntilConverged": {
+        "mean": 7612,
+        "p99": 7612
+      },
+      "meanMessages": {
+        "hash": 4,
+        "digest": 12,
+        "frame": 12
+      },
+      "errors": 0
+    },
+    {
+      "nodes": 4,
+      "lossPct": 15,
+      "runs": 100,
+      "converged": 100,
+      "rounds": {
+        "mean": 2.54,
+        "p50": 2,
+        "p95": 4,
+        "p99": 5,
+        "max": 5
+      },
+      "secondsUpperBound": {
+        "mean": 6.35,
+        "p50": 5,
+        "p95": 10,
+        "p99": 12.5,
+        "max": 12.5
+      },
+      "totalBytesUntilConverged": {
+        "mean": 17835.88,
+        "p99": 27508
+      },
+      "meanMessages": {
+        "hash": 10.16,
+        "digest": 22.44,
+        "frame": 17.39
+      },
+      "errors": 0
+    },
+    {
+      "nodes": 4,
+      "lossPct": 30,
+      "runs": 100,
+      "converged": 100,
+      "rounds": {
+        "mean": 4.82,
+        "p50": 5,
+        "p95": 7,
+        "p99": 9,
+        "max": 9
+      },
+      "secondsUpperBound": {
+        "mean": 12.05,
+        "p50": 12.5,
+        "p95": 17.5,
+        "p99": 22.5,
+        "max": 22.5
+      },
+      "totalBytesUntilConverged": {
+        "mean": 26011.81,
+        "p99": 43038
+      },
+      "meanMessages": {
+        "hash": 19.28,
+        "digest": 33.62,
+        "frame": 21.23
+      },
+      "errors": 0
+    },
+    {
+      "nodes": 6,
+      "lossPct": 0,
+      "runs": 100,
+      "converged": 100,
+      "rounds": {
+        "mean": 1,
+        "p50": 1,
+        "p95": 1,
+        "p99": 1,
+        "max": 1
+      },
+      "secondsUpperBound": {
+        "mean": 2.5,
+        "p50": 2.5,
+        "p95": 2.5,
+        "p99": 2.5,
+        "max": 2.5
+      },
+      "totalBytesUntilConverged": {
+        "mean": 18966,
+        "p99": 18966
+      },
+      "meanMessages": {
+        "hash": 6,
+        "digest": 30,
+        "frame": 30
+      },
+      "errors": 0
+    },
+    {
+      "nodes": 6,
+      "lossPct": 15,
+      "runs": 100,
+      "converged": 100,
+      "rounds": {
+        "mean": 2.45,
+        "p50": 2,
+        "p95": 3,
+        "p99": 3,
+        "max": 4
+      },
+      "secondsUpperBound": {
+        "mean": 6.125,
+        "p50": 5,
+        "p95": 7.5,
+        "p99": 7.5,
+        "max": 10
+      },
+      "totalBytesUntilConverged": {
+        "mean": 55937.16,
+        "p99": 75151
+      },
+      "meanMessages": {
+        "hash": 14.7,
+        "digest": 55.85,
+        "frame": 55.02
+      },
+      "errors": 0
+    },
+    {
+      "nodes": 6,
+      "lossPct": 30,
+      "runs": 100,
+      "converged": 100,
+      "rounds": {
+        "mean": 4.94,
+        "p50": 5,
+        "p95": 7,
+        "p99": 9,
+        "max": 10
+      },
+      "secondsUpperBound": {
+        "mean": 12.35,
+        "p50": 12.5,
+        "p95": 17.5,
+        "p99": 22.5,
+        "max": 25
+      },
+      "totalBytesUntilConverged": {
+        "mean": 83881.71,
+        "p99": 134150
+      },
+      "meanMessages": {
+        "hash": 29.64,
+        "digest": 80.75,
+        "frame": 70.16
+      },
+      "errors": 0
+    },
+    {
+      "nodes": 8,
+      "lossPct": 0,
+      "runs": 100,
+      "converged": 100,
+      "rounds": {
+        "mean": 1,
+        "p50": 1,
+        "p95": 1,
+        "p99": 1,
+        "max": 1
+      },
+      "secondsUpperBound": {
+        "mean": 2.5,
+        "p50": 2.5,
+        "p95": 2.5,
+        "p99": 2.5,
+        "max": 2.5
+      },
+      "totalBytesUntilConverged": {
+        "mean": 35352,
+        "p99": 35352
+      },
+      "meanMessages": {
+        "hash": 8,
+        "digest": 56,
+        "frame": 56
+      },
+      "errors": 0
+    },
+    {
+      "nodes": 8,
+      "lossPct": 15,
+      "runs": 100,
+      "converged": 100,
+      "rounds": {
+        "mean": 2.56,
+        "p50": 3,
+        "p95": 3,
+        "p99": 4,
+        "max": 4
+      },
+      "secondsUpperBound": {
+        "mean": 6.4,
+        "p50": 7.5,
+        "p95": 7.5,
+        "p99": 10,
+        "max": 10
+      },
+      "totalBytesUntilConverged": {
+        "mean": 128530.57,
+        "p99": 181328
+      },
+      "meanMessages": {
+        "hash": 20.48,
+        "digest": 104.59,
+        "frame": 122.84
+      },
+      "errors": 0
+    },
+    {
+      "nodes": 8,
+      "lossPct": 30,
+      "runs": 100,
+      "converged": 100,
+      "rounds": {
+        "mean": 4.85,
+        "p50": 5,
+        "p95": 7,
+        "p99": 8,
+        "max": 9
+      },
+      "secondsUpperBound": {
+        "mean": 12.125,
+        "p50": 12.5,
+        "p95": 17.5,
+        "p99": 20,
+        "max": 22.5
+      },
+      "totalBytesUntilConverged": {
+        "mean": 192902.79,
+        "p99": 297800
+      },
+      "meanMessages": {
+        "hash": 38.8,
+        "digest": 149.39,
+        "frame": 146.01
+      },
+      "errors": 0
+    }
+  ]
+}

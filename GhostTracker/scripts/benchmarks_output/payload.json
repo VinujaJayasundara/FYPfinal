@@ -1,0 +1,184 @@
+{
+  "benchmark": "A3 sync payload sizes (binary protocol v2 vs JSON)",
+  "machine": {
+    "cpu": "Intel(R) Core(TM) i5-10200H CPU @ 2.40GHz",
+    "cores": 8,
+    "ramGb": 16,
+    "os": "Windows_NT 10.0.26300 (x64)",
+    "node": "v24.6.0",
+    "measuredAt": "2026-10-28T08:54:09.170Z"
+  },
+  "config": {
+    "entryCounts": [
+      1,
+      2,
+      4,
+      6,
+      8,
+      20,
+      40
+    ],
+    "maxFrameBytes": 512,
+    "frameHeaderBytes": 4,
+    "seed": 7
+  },
+  "binaryBytesPerAdditionalEntry": 88.76923076923077,
+  "singleDevice": [
+    {
+      "entries": 1,
+      "devices": 1,
+      "binaryBytes": 171,
+      "jsonBytes": 427,
+      "binaryVsJson": 0.4,
+      "frames512": 1,
+      "framedBytesOnAir": 175,
+      "digestJsonBytes": 164,
+      "stateHashBytes": 16
+    },
+    {
+      "entries": 2,
+      "devices": 1,
+      "binaryBytes": 259,
+      "jsonBytes": 694,
+      "binaryVsJson": 0.373,
+      "frames512": 1,
+      "framedBytesOnAir": 263,
+      "digestJsonBytes": 218,
+      "stateHashBytes": 16
+    },
+    {
+      "entries": 4,
+      "devices": 1,
+      "binaryBytes": 435,
+      "jsonBytes": 1235,
+      "binaryVsJson": 0.352,
+      "frames512": 1,
+      "framedBytesOnAir": 439,
+      "digestJsonBytes": 326,
+      "stateHashBytes": 16
+    },
+    {
+      "entries": 6,
+      "devices": 1,
+      "binaryBytes": 611,
+      "jsonBytes": 1769,
+      "binaryVsJson": 0.345,
+      "frames512": 2,
+      "framedBytesOnAir": 619,
+      "digestJsonBytes": 434,
+      "stateHashBytes": 16
+    },
+    {
+      "entries": 8,
+      "devices": 1,
+      "binaryBytes": 787,
+      "jsonBytes": 2298,
+      "binaryVsJson": 0.342,
+      "frames512": 2,
+      "framedBytesOnAir": 795,
+      "digestJsonBytes": 542,
+      "stateHashBytes": 16
+    },
+    {
+      "entries": 20,
+      "devices": 1,
+      "binaryBytes": 1853,
+      "jsonBytes": 5529,
+      "binaryVsJson": 0.335,
+      "frames512": 4,
+      "framedBytesOnAir": 1869,
+      "digestJsonBytes": 1201,
+      "stateHashBytes": 16
+    },
+    {
+      "entries": 40,
+      "devices": 1,
+      "binaryBytes": 3633,
+      "jsonBytes": 10915,
+      "binaryVsJson": 0.333,
+      "frames512": 8,
+      "framedBytesOnAir": 3665,
+      "digestJsonBytes": 2301,
+      "stateHashBytes": 16
+    }
+  ],
+  "multiDevice": [
+    {
+      "entries": 1,
+      "devices": 1,
+      "binaryBytes": 171,
+      "jsonBytes": 428,
+      "binaryVsJson": 0.4,
+      "frames512": 1,
+      "framedBytesOnAir": 175,
+      "digestJsonBytes": 164,
+      "stateHashBytes": 16
+    },
+    {
+      "entries": 2,
+      "devices": 2,
+      "binaryBytes": 298,
+      "jsonBytes": 736,
+      "binaryVsJson": 0.405,
+      "frames512": 1,
+      "framedBytesOnAir": 302,
+      "digestJsonBytes": 258,
+      "stateHashBytes": 16
+    },
+    {
+      "entries": 4,
+      "devices": 4,
+      "binaryBytes": 553,
+      "jsonBytes": 1352,
+      "binaryVsJson": 0.409,
+      "frames512": 2,
+      "framedBytesOnAir": 561,
+      "digestJsonBytes": 446,
+      "stateHashBytes": 16
+    },
+    {
+      "entries": 6,
+      "devices": 6,
+      "binaryBytes": 811,
+      "jsonBytes": 1972,
+      "binaryVsJson": 0.411,
+      "frames512": 2,
+      "framedBytesOnAir": 819,
+      "digestJsonBytes": 634,
+      "stateHashBytes": 16
+    },
+    {
+      "entries": 8,
+      "devices": 8,
+      "binaryBytes": 1067,
+      "jsonBytes": 2590,
+      "binaryVsJson": 0.412,
+      "frames512": 3,
+      "framedBytesOnAir": 1079,
+      "digestJsonBytes": 822,
+      "stateHashBytes": 16
+    },
+    {
+      "entries": 20,
+      "devices": 8,
+      "binaryBytes": 2121,
+      "jsonBytes": 5806,
+      "binaryVsJson": 0.365,
+      "frames512": 5,
+      "framedBytesOnAir": 2141,
+      "digestJsonBytes": 1470,
+      "stateHashBytes": 16
+    },
+    {
+      "entries": 40,
+      "devices": 8,
+      "binaryBytes": 3883,
+      "jsonBytes": 11169,
+      "binaryVsJson": 0.348,
+      "frames512": 8,
+      "framedBytesOnAir": 3915,
+      "digestJsonBytes": 2550,
+      "stateHashBytes": 16
+    }
+  ]
+}

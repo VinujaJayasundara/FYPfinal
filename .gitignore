@@ -70,3 +70,6 @@ Thumbs.db
 
 # Metro
 .metro-health-check*
+
+# Benchmark build output
+GhostTracker/scripts/benchmarks/.build/

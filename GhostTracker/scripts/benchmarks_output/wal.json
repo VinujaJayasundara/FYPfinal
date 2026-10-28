@@ -1,0 +1,102 @@
+{
+  "benchmark": "A2 SQLite single-row insert latency, WAL vs rollback journal",
+  "environment": "Python sqlite3 on development machine disk (not a phone)",
+  "machine": {
+    "cpu": "Intel64 Family 6 Model 165 Stepping 2, GenuineIntel",
+    "os": "Windows 11",
+    "python": "3.14.6",
+    "sqlite": "3.50.4",
+    "measuredAt": "2026-10-28T14:24:48"
+  },
+  "config": {
+    "inserts": 1000,
+    "repeats": 5,
+    "seed": 42,
+    "transaction": "one per INSERT"
+  },
+  "results": {
+    "rollback-full": {
+      "journal_mode": "delete",
+      "synchronous": "FULL",
+      "samples": 5000,
+      "mean_ms": 3.31758504,
+      "sd_ms": 2.0388620774388744,
+      "p50_ms": 2.8773,
+      "p95_ms": 5.2342,
+      "p99_ms": 9.6226,
+      "max_ms": 66.0767,
+      "run_means_ms": [
+        4.1936345,
+        3.8284007,
+        2.964907,
+        2.7844967,
+        2.8164862999999998
+      ],
+      "inserts_per_s": 301.4240744225203
+    },
+    "rollback-norm": {
+      "journal_mode": "delete",
+      "synchronous": "NORMAL",
+      "samples": 5000,
+      "mean_ms": 2.36976082,
+      "sd_ms": 0.6320763783440572,
+      "p50_ms": 2.2583,
+      "p95_ms": 3.113,
+      "p99_ms": 4.1829,
+      "max_ms": 23.3271,
+      "run_means_ms": [
+        2.4563833,
+        2.4116154,
+        2.3716661,
+        2.3359061,
+        2.2732332
+      ],
+      "inserts_per_s": 421.9835147751324
+    },
+    "wal-full": {
+      "journal_mode": "wal",
+      "synchronous": "FULL",
+      "samples": 5000,
+      "mean_ms": 0.53857392,
+      "sd_ms": 0.1970313930768525,
+      "p50_ms": 0.4946,
+      "p95_ms": 0.7143,
+      "p99_ms": 0.9357,
+      "max_ms": 5.689,
+      "run_means_ms": [
+        0.51953,
+        0.5545183,
+        0.5396201,
+        0.5387951,
+        0.5404061
+      ],
+      "inserts_per_s": 1856.7553363891068
+    },
+    "wal-normal": {
+      "journal_mode": "wal",
+      "synchronous": "NORMAL",
+      "samples": 5000,
+      "mean_ms": 0.05518846,
+      "sd_ms": 0.345495823652994,
+      "p50_ms": 0.0288,
+      "p95_ms": 0.0878,
+      "p99_ms": 0.1539,
+      "max_ms": 12.0331,
+      "run_means_ms": [
+        0.0549485,
+        0.0534766,
+        0.0596017,
+        0.0536895,
+        0.054225999999999996
+      ],
+      "inserts_per_s": 18119.73010299617
+    }
+  },
+  "speedup_wal_normal_vs_rollback_full": {
+    "mean": 60.11374551853775,
+    "p50": 99.90625
+  },
+  "speedup_wal_full_vs_rollback_full": {
+    "mean": 6.159943726944668
+  }
+}

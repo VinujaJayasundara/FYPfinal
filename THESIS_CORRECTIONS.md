@@ -36,7 +36,7 @@ These all come from re-running `GhostTracker/scripts/` (seed 42, runner-level 16
 | Full-data fit (used for the equation) | — | **R² 0.7507, adj. R² 0.7496, F 718.9, n = 1,200** | `npi_regression_report.txt` |
 | Importance (RII, Eq. 3.14–3.15, training set) | Distance 32, Gender 25, BMI 21, Age 14, Altitude 8 | **Altitude 34%, Age 27%, BMI 18%, Distance 14%, Sex 7%** | standardised β share |
 | ANOVA raw pace (age) | F = 84.62 | **F = 44.17, p < 0.0001** | `npi_fairness_anova.txt` |
-| ANOVA NPI (age) | F = 0.13, p = 0.942 | **F = 0.10, p = 0.962** | |
+| ANOVA NPI (age) | F = 0.13, p = 0.942 | **F = 0.10, p = 0.961** | |
 | Levene NPI (age) | W = 0.41, p = 0.746 | **W = 1.05, p = 0.371** | |
 | ANOVA NPI (sex) | not reported | **F = 6.30, p = 0.013 → differs (limitation)** | |
 
@@ -57,7 +57,7 @@ Intercept [205.0] 190.2703, SE 4.7667, t 39.92, recovery 92.8% · Age [1.85] SE 
 1. RMSE "24.16" → **23.61**. Do this one occurrence at a time, only where the sentence says RMSE: pp. iii, 43, 74, 93, 100, 110, 112. Table 31's "23.81" also becomes 23.61.
 2. Every "22.50" → **24.16**.
 3. "0.7458" → **0.7248**. "0.7480" → **0.7555**. "0.0022" → **0.031**. "19.34" → **19.21**.
-4. "F = 0.13" → **F = 0.10**. "p = 0.942" → **p = 0.962**. "84.62" → **44.17**. "W = 0.41" → **W = 1.05**. "0.746" → **0.371**.
+4. "F = 0.13" → **F = 0.10**. "p = 0.942" → **p = 0.961**. "84.62" → **44.17**. "W = 0.41" → **W = 1.05**. "0.746" → **0.371**.
 
 ---
 
@@ -100,7 +100,7 @@ Intercept [205.0] 190.2703, SE 4.7667, t 39.92, recovery 92.8% · Age [1.85] SE 
 | i | [EDIT] | "this Thesis2 does" → "this Thesis does" (stray superscript). |
 | i–ii, title | [CONSIST] | Supervisor name is spelled three ways: "DVD", "DV Dharani", "DVDS". Use one. |
 | ii | [EDIT] | "Mrs. MKP Madushanka & Mrs. DVDS Abeysinghe &, for her unwavering support … Her constructive…" → "my supervisors, Mrs. MKP Madushanka and Mrs. DVD Abeysinghe, for their unwavering support … Their constructive…" |
-| iii | [EDIT] | Importance % → Altitude 34%, Age 27%, BMI 18%, Distance 14%, Sex 7%. Also NPI "/22.50" → "/24.16"; R²_test 0.7458 → 0.7248; MAE 19.34 → 19.21; RMSE 24.16 → 23.61; ANOVA F 0.13 / p 0.942 → F 0.10 / p 0.962; raw F 84.62 → 44.17. |
+| iii | [EDIT] | Importance % → Altitude 34%, Age 27%, BMI 18%, Distance 14%, Sex 7%. Also NPI "/22.50" → "/24.16"; R²_test 0.7458 → 0.7248; MAE 19.34 → 19.21; RMSE 24.16 → 23.61; ANOVA F 0.13 / p 0.942 → F 0.10 / p 0.961; raw F 84.62 → 44.17. |
 | iii | [EDIT] | "≤384-byte frames within the ≤512-byte BLE MTU" → "frames of at most 512 bytes (4-byte header), fitting the BLE MTU". |
 | iii | [MEASURE] | From "Across physical field trials…" to the end of the paragraph: replace with *"GPS distance accuracy on the Colombo, Kandy Lake and Horton Plains routes is planned for field validation. In an eight-node simulated anti-entropy network with 30% packet loss, all replicas converged to an identical leaderboard, supporting offline fitness tracking and covariate-adjusted comparison."* If you run the latency benchmarks (section 5), add the measured numbers here. |
 | iii | [DEV] | "six-table … SQLite": keep. Step 5 of the dev plan builds it. |
@@ -222,7 +222,7 @@ Intercept [205.0] 190.2703, SE 4.7667, t 39.92, recovery 92.8% · Age [1.85] SE 
 | 84–86 | [FIG] | Replace Fig 16 → `01_actual_vs_predicted.png`, Fig 17 → `03_residuals_vs_predicted.png`, Fig 18 → `08_qq_plot.png`, Fig 19 → `04_feature_importance.png` (from `scripts/analysis_output/evaluation_plots/`). The current Fig 16 and Fig 19 are the old model. |
 | 86 | [EDIT] | Case Study 1: keep 397.97. NPI sentence → "NPI = (397.97 − 375.00) / 24.16 = **+0.95**". Delete the second "using RMSE" calculation. |
 | 87 | [EDIT] | **Case Study 2.** Kasun's expected pace from Eq 4.1 is **340.25** (not 254.45). With the current paces his NPI is +3.94, so he *beats* Nimal. Fix by making Kasun a "22-year-old **recreational** male runner": PB **320.0 s/km (5:20)**, actual **326.5 s/km (5:26.5)**, Expected **340.25** → RII 0.980, NPI **+0.57**. Nimal: Expected **410.38** (not 411.05), NPI **+1.26** (RII 1.105 unchanged). Nimal still wins on RII and NPI; Kasun still wins raw pace. |
-| 87 | [EDIT] | ANOVA bullets: raw F = 44.17, p < 0.0001. NPI F = 0.10, p = 0.962. Levene W = 1.05, p = 0.371. Add: *"For sex, mean NPI still differed (F = 6.30, p = 0.013), so sex parity is not established in this synthetic cohort (see Section 5.5)."* |
+| 87 | [EDIT] | ANOVA bullets: raw F = 44.17, p < 0.0001. NPI F = 0.10, p = 0.961. Levene W = 1.05, p = 0.371. Add: *"For sex, mean NPI still differed (F = 6.30, p = 0.013), so sex parity is not established in this synthetic cohort (see Section 5.5)."* |
 | 87 | [EDIT] | "In Figure 21 … Figure 22" → "Figure 20 … Figure 21" (match the real captions). |
 | 87–88 | [EDIT] | Table 32: Raw pace "4:05 (245)" → "5:26.5 (326.5)". Interpretation "young elite runner" → "young runner". NPI "+0.42 (Exp: 254.45)" → "+0.57 (Exp: 340.25)". "+1.38 (Exp: 411.05)" → "+1.26 (Exp: 410.38)". Text "+1.38 sigma vs Kasun (+0.42 sigma)" → "+1.26 σ vs +0.57 σ". |
 | 88 | [FIG] [EDIT] | Captions "Figure 190" and "Figure 201" → "Figure 20" and "Figure 21". Fig 20 is the same old 6-feature image as Fig 19. Replace it with a coefficient/t-statistic plot of the 5-feature model (I can generate it). Fig 21 shows "**FAILED**, spread 0.7437". The new `10_npi_fairness_proof.png` still says FAILED (0.6393). **Recommend replacing Fig 21 with an "NPI by age cohort" box plot**, which supports the ANOVA (I can generate it), or explaining the FAILED label in the text. |
@@ -241,7 +241,7 @@ Intercept [205.0] 190.2703, SE 4.7667, t 39.92, recovery 92.8% · Age [1.85] SE 
 | 94 | [EDIT] | "altitude coefficient … effects of vertical work" → "effects of hypoxia". |
 | 94 | [CONSIST] | Two-Stage list says Stage 1 = RII_perf, Stage 2 = NPI. Ch 3 says Stage 1 = expected pace, Stage 2 = NPI + RII_perf. Use the Ch 3 definition. NPI "/22.50" → 24.16. |
 | 94 | [EDIT] | Case studies: "+1.02 (+0.95 using RMSE)" → "+0.95". Kasun: PB 320 (5:20), current 326.5 (5:26.5), recreational, NPI +0.57. Nimal NPI +1.26. |
-| 94 | [CONSIST] | ANOVA "Group 1 Young Male Elite; Group 2 Masters Male; Group 3 Senior Female" → "four age cohorts (18-29, 30-44, 45-59, 60-75)". F 84.62 → 44.17. F 0.13 / p 0.942 → 0.10 / 0.962. |
+| 94 | [CONSIST] | ANOVA "Group 1 Young Male Elite; Group 2 Masters Male; Group 3 Senior Female" → "four age cohorts (18-29, 30-44, 45-59, 60-75)". F 84.62 → 44.17. F 0.13 / p 0.942 → 0.10 / 0.961. |
 | 95–96 | [MEASURE] | 5.2.2 field results (Galle Face +4.20 → +0.37%, etc.): remove or reword. |
 | 95 | [CONSIST] | Pipeline order here is accuracy → 1 Hz → velocity. Ch 3 says 1 Hz → accuracy → velocity. Use the Ch 3 order. |
 | 96 | [CONSIST] | "ghostComparator … at 100-meter segment intervals" → **10-metre** checkpoints. "rendering delay below 16 ms (60 FPS)": [MEASURE]. |
@@ -251,14 +251,14 @@ Intercept [205.0] 190.2703, SE 4.7667, t 39.92, recovery 92.8% · Age [1.85] SE 
 | 97 | [EDIT] | "0 bytes of WAN data egress" is not true when the Wi-Fi relay server is used. Change to "**0 bytes of GPS coordinate data** leave the device; only scalar leaderboard fields are shared". This is now true in code after the privacy fix. |
 | 97 | [EDIT] | "logical vector clocks and monotonic timestamps" → "per-entry timestamps (LWW) and a G-Counter". |
 | 97–98 | [MEASURE] [CONSIST] | 5.2.4 "empirical field experiments … 2 to 8 physical devices". The numbers here (2-node 30% → 2.85 s; 8-node 0% → 4.18 s) **don't match Table 34**. Replace them all with the simulated benchmark. |
-| 98–99 | [CONSIST] [EDIT] | Table 35: RQ titles must follow Ch 1. RQ1 "ANOVA across age/sex cohorts … confirming parity" → "age cohorts: F = 0.10, p = 0.962 (parity retained); sex: p = 0.013 (not retained)". Status "Fully Resolved" → "Resolved for age (synthetic); sex remains a limitation". RQ2/RQ3/RQ4 numbers per section 5. |
-| 100 | [EDIT] | Table 36 module paths don't exist: "src/database/sqliteSchema.ts, src/database/dbAdapter.ts" → `GhostTracker/src/data/database/schema.ts`, `GhostTrackerApp/src/data/database.ts`. Objective 1 numbers. "statistical parity confirmed (p = 0.942)" → "age parity retained (p = 0.962)". |
+| 98–99 | [CONSIST] [EDIT] | Table 35: RQ titles must follow Ch 1. RQ1 "ANOVA across age/sex cohorts … confirming parity" → "age cohorts: F = 0.10, p = 0.961 (parity retained); sex: p = 0.013 (not retained)". Status "Fully Resolved" → "Resolved for age (synthetic); sex remains a limitation". RQ2/RQ3/RQ4 numbers per section 5. |
+| 100 | [EDIT] | Table 36 module paths don't exist: "src/database/sqliteSchema.ts, src/database/dbAdapter.ts" → `GhostTracker/src/data/database/schema.ts`, `GhostTrackerApp/src/data/database.ts`. Objective 1 numbers. "statistical parity confirmed (p = 0.942)" → "age parity retained (p = 0.961)". |
 | 101 | [MEASURE] | Objective 5 "field trials … 100% Achieved" → "Partially achieved / planned" unless done. |
-| 101–102 | [EDIT] | Table 37 H1: raw F 44.17, NPI F 0.10, p 0.962, Levene W 1.05, p 0.371. H2: measured values. H3: "8-node hybrid BLE testbed (6 phones + 2 nRF52840)" → "8-node simulated network" (and real phones if done). |
+| 101–102 | [EDIT] | Table 37 H1: raw F 44.17, NPI F 0.10, p 0.961, Levene W 1.05, p 0.371. H2: measured values. H3: "8-node hybrid BLE testbed (6 phones + 2 nRF52840)" → "8-node simulated network" (and real phones if done). |
 | 103 | [EDIT] | Table 38 row 1: "Distance, Gender, BMI, Age, and Elevation (R² = 0.7458)" → "Altitude, Age, BMI, Distance and Sex (R²_test = 0.7248)". Rows 3–4: measured values / "≤ 512-byte frames". |
-| 104 | [EDIT] | 5.4.1 item 1: RII order and %, R²_test 0.7248. Item 2: ANOVA F 0.10, p 0.962. 5.4.2 item 2: "128 to 384 bytes … 8 mobile nodes within 9.46 s" → simulated benchmark values. |
+| 104 | [EDIT] | 5.4.1 item 1: RII order and %, R²_test 0.7248. Item 2: ANOVA F 0.10, p 0.961. 5.4.2 item 2: "128 to 384 bytes … 8 mobile nodes within 9.46 s" → simulated benchmark values. |
 | 104–106 | [EDIT] | 5.5: **add a 5th limitation (row 5 in Table 39):** *"Sex parity not established: mean NPI differed between male and female synthetic runners (F = 6.30, p = 0.013). Model trained on synthetic data only; ages 18–62 and distances 1–10 km."* Also limitation 1 text "(3 km to 21.1 km)" → "(1–10 km in the training data)". |
-| 108 | [EDIT] / [MEASURE] | 5.7: R² 0.7458 → 0.7248. ANOVA → 0.10 / 0.962. 1.12 ms, 9.46 s → measured / simulated. Last paragraph "field trials were carried out …" → reword. |
+| 108 | [EDIT] / [MEASURE] | 5.7: R² 0.7458 → 0.7248. ANOVA → 0.10 / 0.961. 1.12 ms, 9.46 s → measured / simulated. Last paragraph "field trials were carried out …" → reword. |
 
 ### Chapter 6
 
@@ -266,7 +266,7 @@ Intercept [205.0] 190.2703, SE 4.7667, t 39.92, recovery 92.8% · Age [1.85] SE 
 |---|---|---|
 | 109 | [MEASURE] | 6.1 "field validation across different Sri Lankan topologies" → reword. |
 | 110 | [EDIT] | 6.2.1: fix the broken sentence "For testing, for model training and testing, … filtering., and good". R², MAE, RMSE, σ. "population standard deviation of residuals" → "residual standard error". RII percentages/order. NPI "/22.50" → 24.16. |
-| 110 | [CONSIST] | "ANOVA … grouped by sex, age brackets, and BMI categories" → only age passed. Sex failed (p = 0.013). BMI was not tested. Rewrite accordingly with F 0.10, p 0.962. |
+| 110 | [CONSIST] | "ANOVA … grouped by sex, age brackets, and BMI categories" → only age passed. Sex failed (p = 0.013). BMI was not tested. Rewrite accordingly with F 0.10, p 0.961. |
 | 110–111 | [MEASURE] | 6.2.2 field trial results (+0.37 / +0.50 / +0.64%): reword. |
 | 111 | [EDIT] | 6.2.3 "zero-knowledge local-first architecture" → "local-first architecture with on-device storage". "Zero-knowledge" means a cryptographic proof, which you don't use. 1.12 ms, 0.04 ms, 60 FPS, 0 bytes WAN → measured values / "0 bytes of coordinates". |
 | 111 | [MEASURE] | 6.2.4: 1.42 s, 9.46 s, "≤ 384 bytes" → simulated benchmark values. |

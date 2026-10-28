@@ -1,0 +1,40 @@
+{
+  "benchmark": "A1 inference latency (predictExpectedPace + calculateNPI + calculateRII)",
+  "environment": "Node.js on development machine (not a phone)",
+  "machine": {
+    "cpu": "Intel(R) Core(TM) i5-10200H CPU @ 2.40GHz",
+    "cores": 8,
+    "ramGb": 16,
+    "os": "Windows_NT 10.0.26300 (x64)",
+    "node": "v24.6.0",
+    "measuredAt": "2026-10-28T08:54:09.078Z"
+  },
+  "config": {
+    "calls": 10000,
+    "batchRepeats": 30,
+    "warmupCalls": 50000,
+    "seed": 42
+  },
+  "batchMeanPerCall": {
+    "meanNs": 89.34533333333334,
+    "sdNs": 25.908355959144668,
+    "minNs": 54.51,
+    "maxNs": 139.27,
+    "meanMs": 0.00008934533333333334
+  },
+  "perCall": {
+    "note": "each sample includes one clock read; subtract timerOverheadNs.p50 for an estimate of the pure cost",
+    "meanNs": 196.08,
+    "p50Ns": 100,
+    "p95Ns": 300,
+    "p99Ns": 500,
+    "maxNs": 261600,
+    "p50Ms": 0.0001,
+    "p99Ms": 0.0005
+  },
+  "timerOverheadNs": {
+    "p50": 100,
+    "mean": 93.32
+  },
+  "sink": 882913.567701689
+}

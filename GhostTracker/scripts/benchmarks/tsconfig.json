@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020", "DOM"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "rootDir": "../../..",
+    "outDir": ".build",
+    "typeRoots": ["../../node_modules/@types"],
+    "types": ["node"]
+  },
+  "files": [
+    "globals.d.ts",
+    "inference_latency.ts",
+    "payload_sizes.ts",
+    "gossip_convergence.ts"
+  ]
+}
