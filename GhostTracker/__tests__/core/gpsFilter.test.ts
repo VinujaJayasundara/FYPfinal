@@ -2,8 +2,16 @@
  * Unit Tests: GPS Noise Filter
  */
 
-import { validateTelemetryPoint, validatePointPair, filterTelemetry } from '../../src/core/spatial/gpsFilter';
+import { validateTelemetryPoint, validatePointPair, filterTelemetry, GpsFilter } from '../../src/core/spatial/gpsFilter';
 import { TelemetryPoint } from '../../src/data/models';
+import { EARTH_RADIUS_M } from '../../src/utils/constants';
+
+const LAT0 = 6.8413;
+
+/** Latitude `metres` north of LAT0 on the same meridian (haversine is exact there). */
+function northOf(metres: number): number {
+  return LAT0 + (metres / EARTH_RADIUS_M) * (180 / Math.PI);
+}
 
 function makePoint(overrides: Partial<TelemetryPoint> = {}): TelemetryPoint {
   return {
@@ -118,6 +126,94 @@ describe('GPS Noise Filter', () => {
       const result = filterTelemetry(points);
       expect(result.rejectedCount).toBeGreaterThan(0);
       expect(result.rejectionLog.some(r => r.reason.includes('IMPLIED_SPEED_EXCEEDED'))).toBe(true);
+    });
+  });
+
+  // ── Thesis Table 12 pipeline (GpsFilter.sanitizeFix) ──────────────────
+
+  describe('GpsFilter — thesis Table 12', () => {
+    /** First fix at t = 0 on LAT0, then one candidate fix `metres` north after `deltaMs`. */
+    function candidate(metres: number, deltaMs = 1000, overrides: Partial<TelemetryPoint> = {}) {
+      const filter = new GpsFilter();
+      expect(filter.sanitizeFix(makePoint({ timestamp: 0, latitude: LAT0, velocity: null }))).not.toBeNull();
+      const fix = makePoint({ timestamp: deltaMs, latitude: northOf(metres), velocity: null, seqIndex: 1, ...overrides });
+      return { filter, result: filter.sanitizeFix(fix) };
+    }
+
+    test('UT-01: fix with r_acc = 62.4 m is rejected and null is returned', () => {
+      const { filter, result } = candidate(3, 1000, { accuracy: 62.4 });
+      expect(result).toBeNull();
+      expect(filter.lastRejection?.stage).toBe('ACCURACY');
+    });
+
+    test('UT-02: fix with v_inst = 9.20 m/s (33.1 km/h) is rejected as a spike', () => {
+      const { filter, result } = candidate(9.2);
+      expect(result).toBeNull();
+      expect(filter.lastRejection?.stage).toBe('VELOCITY');
+      expect(filter.lastRejection?.reason).toContain('33.1 km/h');
+    });
+
+    describe('BVA: horizontal accuracy 49.9 / 50.0 / 50.1 m', () => {
+      test.each([
+        [49.9, true],
+        [50.0, true],
+        [50.1, false],
+      ])('r_acc = %p m → accepted %p', (accuracy, accepted) => {
+        const { result } = candidate(3, 1000, { accuracy });
+        expect(result !== null).toBe(accepted);
+      });
+    });
+
+    describe('BVA: velocity clamp 6.93 / 6.94 / 6.95 m/s', () => {
+      test.each([
+        [6.93, true],
+        [6.94, true],
+        [6.95, false],
+      ])('v_inst = %p m/s → accepted %p', (speed, accepted) => {
+        const { result } = candidate(speed);
+        expect(result !== null).toBe(accepted);
+      });
+    });
+
+    test('1 Hz gate: fixes at 0, 400, 1000, 1500, 2100 ms keep exactly 0, 1000, 2100', () => {
+      const filter = new GpsFilter();
+      const kept = [0, 400, 1000, 1500, 2100]
+        .map((t, i) => makePoint({ timestamp: t, latitude: northOf(t * 0.003), seqIndex: i }))
+        .filter(p => filter.sanitizeFix(p) !== null)
+        .map(p => p.timestamp);
+      expect(kept).toEqual([0, 1000, 2100]);
+      expect(filter.stats.rejected.TEMPORAL).toBe(2);
+    });
+
+    test('temporal gate runs before the accuracy gate (Table 12 order)', () => {
+      const { filter, result } = candidate(1, 500, { accuracy: 80 });
+      expect(result).toBeNull();
+      expect(filter.lastRejection?.stage).toBe('TEMPORAL');
+    });
+
+    test('a rejected spike does not become the reference for the next fix', () => {
+      const filter = new GpsFilter();
+      filter.sanitizeFix(makePoint({ timestamp: 0, latitude: LAT0 }));
+      expect(filter.sanitizeFix(makePoint({ timestamp: 1000, latitude: northOf(120) }))).toBeNull();
+      // 6 m from the last accepted fix in 2 s = 3 m/s, so this one is kept
+      expect(filter.sanitizeFix(makePoint({ timestamp: 2000, latitude: northOf(6) }))).not.toBeNull();
+      expect(filter.lastAccepted?.timestamp).toBe(2000);
+    });
+
+    test('first fix with no predecessor falls back to the device-reported speed', () => {
+      const filter = new GpsFilter();
+      expect(filter.sanitizeFix(makePoint({ timestamp: 0, velocity: 9.2 }))).toBeNull();
+      expect(filter.lastRejection?.stage).toBe('VELOCITY');
+    });
+
+    test('reset clears the reference fix and the counters', () => {
+      const filter = new GpsFilter();
+      filter.sanitizeFix(makePoint({ timestamp: 0 }));
+      filter.sanitizeFix(makePoint({ timestamp: 100 }));
+      filter.reset();
+      expect(filter.lastAccepted).toBeNull();
+      expect(filter.stats).toEqual({ accepted: 0, rejected: { INVALID: 0, TEMPORAL: 0, ACCURACY: 0, VELOCITY: 0 } });
+      expect(filter.sanitizeFix(makePoint({ timestamp: 100 }))).not.toBeNull();
     });
   });
 });

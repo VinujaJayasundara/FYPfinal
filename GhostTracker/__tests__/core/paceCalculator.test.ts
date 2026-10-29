@@ -2,7 +2,13 @@
  * Unit Tests: Pace Calculator
  */
 
-import { calculateInstantPace, calculateAvgPace, formatPace, paceToSpeed, speedToPace } from '../../src/core/spatial/paceCalculator';
+import { calculateInstantPace, calculateAvgPace, formatPace, paceToSpeed, speedToPace, RollingPaceWindow } from '../../src/core/spatial/paceCalculator';
+import { EARTH_RADIUS_M } from '../../src/utils/constants';
+
+/** Latitude `metres` north of 6.8413 on the same meridian. */
+function northOf(metres: number): number {
+  return 6.8413 + (metres / EARTH_RADIUS_M) * (180 / Math.PI);
+}
 import { TelemetryPoint } from '../../src/data/models';
 
 function makePoint(overrides: Partial<TelemetryPoint> = {}): TelemetryPoint {
@@ -85,6 +91,78 @@ describe('Pace Calculator', () => {
     test('should be inverse operations', () => {
       const pace = 330;
       expect(speedToPace(paceToSpeed(pace))).toBeCloseTo(pace, 5);
+    });
+  });
+
+  // ── Thesis §3.6.4: 10-second sliding window (Eq. 3.25) ──────────────
+
+  describe('RollingPaceWindow', () => {
+    /** One accepted 1 Hz fix per second at a constant speed (m/s). */
+    function feed(window: RollingPaceWindow, seconds: number, speedMs: number, startS = 0, startM = 0): number {
+      let pace = 0;
+      for (let s = 0; s <= seconds; s++) {
+        pace = window.push(makePoint({ timestamp: (startS + s) * 1000, latitude: northOf(startM + s * speedMs) }));
+      }
+      return pace;
+    }
+
+    test('constant 5:00 /km run gives 300 s/km', () => {
+      const pace = feed(new RollingPaceWindow(), 60, 1000 / 300);
+      expect(pace).toBeCloseTo(300, 6);
+    });
+
+    test('keeps only the last 10 s: 11 points at 1 Hz', () => {
+      const window = new RollingPaceWindow();
+      feed(window, 60, 3);
+      expect(window.size).toBe(11);
+    });
+
+    test('standing still returns the idle sentinel 0', () => {
+      const window = new RollingPaceWindow();
+      for (let s = 0; s <= 15; s++) {
+        expect(window.push(makePoint({ timestamp: s * 1000 }))).toBe(0);
+      }
+    });
+
+    test('fewer than two points returns 0', () => {
+      const window = new RollingPaceWindow();
+      expect(window.getRollingPace()).toBe(0);
+      expect(window.push(makePoint({ timestamp: 0 }))).toBe(0);
+    });
+
+    test('pace follows a speed change within one window', () => {
+      const window = new RollingPaceWindow();
+      feed(window, 30, 1000 / 360); // 6:00 /km for 30 s
+      const distanceAt30 = 30 * (1000 / 360);
+      const pace = feed(window, 10, 1000 / 240, 30, distanceAt30); // then 4:00 /km for 10 s
+      expect(pace).toBeCloseTo(240, 6);
+    });
+
+    test('gaps from dropped fixes are handled: the window spans time, not point count', () => {
+      const window = new RollingPaceWindow();
+      // every other second missing, still 5:00 /km
+      let pace = 0;
+      for (let s = 0; s <= 40; s += 2) {
+        pace = window.push(makePoint({ timestamp: s * 1000, latitude: northOf(s * (1000 / 300)) }));
+      }
+      expect(pace).toBeCloseTo(300, 6);
+      expect(window.size).toBe(6);
+    });
+
+    test('never returns NaN or Infinity', () => {
+      const window = new RollingPaceWindow();
+      for (let s = 0; s < 30; s++) {
+        const pace = window.push(makePoint({ timestamp: s * 1000, latitude: northOf(s % 3 === 0 ? 0 : s) }));
+        expect(Number.isFinite(pace)).toBe(true);
+      }
+    });
+
+    test('reset empties the window', () => {
+      const window = new RollingPaceWindow();
+      feed(window, 20, 3);
+      window.reset();
+      expect(window.size).toBe(0);
+      expect(window.getRollingPace()).toBe(0);
     });
   });
 });

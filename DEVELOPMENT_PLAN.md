@@ -14,7 +14,7 @@ Companion file: [THESIS_CORRECTIONS.md](THESIS_CORRECTIONS.md) (what to change i
 | 0 | Git snapshot | 28 Oct | No | ✅ Done (`5638847`) |
 | 1 | Anti-entropy gossip over the Wi-Fi relay | 28 Oct | No | ✅ Done (`fc9e8a0`) |
 | A | Real numbers and figures for the thesis | 29 Oct | No | ✅ |
-| B | GPS pipeline: 1 Hz, 10 s pace window, 10 m ghost Δt | 31 Oct – 1 Nov | No | ⬜ |
+| B | GPS pipeline: 1 Hz, 10 s pace window, 10 m ghost Δt | 31 Oct – 1 Nov | No | ✅ (29 Oct) |
 | C | Bluetooth transport (dual role, GATT, frames) | 2 – 8 Nov | **Yes (2 Android)** | ⬜ |
 | D | Fairness modules + the thesis unit tests | 9 – 10 Nov | No | ⬜ |
 | E | Six-table database, PRAGMAs, hashed IDs | 11 – 12 Nov | No | ⬜ |
@@ -72,6 +72,13 @@ Makes thesis §3.6.1, §3.6.4, §4.4.3, FRS-03, FRS-06 and Fig 9 true.
 | B7 | Integration test IT-01: a recorded track with 20% injected spikes goes through filter → haversine → window with no NaN and the expected distance ± 1% | new `GhostTracker/__tests__/integration/spatialPipeline.test.ts`, input from `scripts/test_data/bellanwila_telemetry.json` |
 
 **Done when:** all of B6–B7 pass. A simulated run in the web build shows a pace that changes smoothly and a ghost delta every 10 m.
+
+**Result (29 Oct).** Done on branch `phase-b`.
+- Core: `GpsFilter.sanitizeFix()` follows Table 12 (1 Hz → 50 m → 6.94 m/s, with speed measured between fixes). Added `RollingPaceWindow` (10 s window, idle sentinel 0), plus `buildGhostCheckpoints`, `interpolateCheckpoint`, `evaluateGhostDelta`, `ghostDistanceAtTime` and `GhostPacer`.
+- App: `RunContext` uses the core pipeline. The ghost is now the saved PB run, replacing the fixed 6:00/km ghost, and the run screen shows "x.x s ahead/behind" at each 10 m mark. `algorithms.ts` now re-exports the core haversine, RII and pace functions, and its own copies of `isValidGPS`, `GCounter` and `distance3D` are deleted.
+- Tests: 45 new tests (UT-01, UT-02, both BVA triples, the 1 Hz gate, the rolling window, the ghost Δt, and IT-01 with 20% noise, which keeps distance within 1%). The core suite now has 148 tests.
+- Not done: the "simulated run in the web build" check. The app has no track-replay mode yet; it comes with the Phase H demo.
+- Note: IT-01 uses a generated circle track with known length. `bellanwila_telemetry.json` is too noisy to use as ground truth: 35% of its 1-second steps exceed 6.94 m/s.
 
 ---
 

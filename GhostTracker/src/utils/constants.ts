@@ -12,14 +12,23 @@ export const EARTH_RADIUS_M = 6371000;
 /** Maximum valid velocity in km/h. Points above this are rejected as GPS spikes or vehicle spoofing */
 export const MAX_VELOCITY_KMH = 25;
 
+/** Same limit in m/s (25 km/h ≈ 6.94 m/s), the thesis v_max */
+export const MAX_VELOCITY_MS = MAX_VELOCITY_KMH / 3.6;
+
 /** Maximum acceptable GPS accuracy in meters. Points with worse accuracy are rejected */
 export const MAX_ACCURACY_M = 50;
 
 /** GPS sampling rate in Hz */
 export const GPS_SAMPLE_RATE_HZ = 1;
 
-/** GPS sampling interval in milliseconds */
+/** GPS sampling interval in milliseconds; fixes closer than this to the last accepted fix are dropped */
 export const GPS_SAMPLE_INTERVAL_MS = 1000;
+
+/** Length of the sliding window used for the live rolling pace, in seconds */
+export const ROLLING_PACE_WINDOW_S = 10;
+
+/** Spacing of the personal-best checkpoints used for the ghost time gap, in meters */
+export const GHOST_CHECKPOINT_INTERVAL_M = 10;
 
 // ============================================================
 // BLE Constants (Phase 4)

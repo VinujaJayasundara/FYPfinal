@@ -10,6 +10,7 @@
 
 import { haversineDistanceM } from './haversine';
 import { TelemetryPoint } from '../../data/models';
+import { ROLLING_PACE_WINDOW_S } from '../../utils/constants';
 
 /**
  * Calculate instantaneous pace between two consecutive telemetry points.
@@ -77,6 +78,80 @@ export function calculateRollingPace(points: TelemetryPoint[]): number {
   const totalDistanceKm = totalDistanceM / 1000;
 
   return totalTimeS / totalDistanceKm;
+}
+
+type PacePoint = Pick<TelemetryPoint, 'latitude' | 'longitude' | 'timestamp'>;
+
+/**
+ * Sliding-window rolling pace (thesis §3.6.4, Eq. 3.25).
+ *
+ * Keeps the accepted points inside [t − W, t], with W = 10 s, and computes
+ *   P_rolling = Σ Δt / Σ d × 1000   [s/km]
+ * over the consecutive pairs in the window. When the runner has not moved
+ * (Σ d = 0), or there are fewer than two points, it returns the idle
+ * sentinel 0 instead of dividing by zero.
+ */
+export class RollingPaceWindow {
+  private readonly windowMs: number;
+  /** Each entry stores the distance from the point before it. */
+  private entries: Array<{ timestamp: number; stepM: number }> = [];
+  private last: PacePoint | null = null;
+
+  constructor(windowS: number = ROLLING_PACE_WINDOW_S) {
+    this.windowMs = windowS * 1000;
+  }
+
+  /**
+   * Add an accepted point and return the updated rolling pace.
+   * Points older than the newest one are ignored.
+   */
+  push(point: PacePoint): number {
+    if (this.last && point.timestamp < this.last.timestamp) {
+      return this.getRollingPace();
+    }
+
+    const stepM = this.last
+      ? haversineDistanceM(this.last.latitude, this.last.longitude, point.latitude, point.longitude)
+      : 0;
+    this.entries.push({ timestamp: point.timestamp, stepM });
+    this.last = point;
+
+    const windowStart = point.timestamp - this.windowMs;
+    while (this.entries.length > 0 && this.entries[0].timestamp < windowStart) {
+      this.entries.shift();
+    }
+
+    return this.getRollingPace();
+  }
+
+  /** Current rolling pace in s/km, or 0 (idle sentinel). */
+  getRollingPace(): number {
+    if (this.entries.length < 2) {
+      return 0;
+    }
+
+    // The first entry's step leads in from a point outside the window.
+    let distanceM = 0;
+    for (let i = 1; i < this.entries.length; i++) {
+      distanceM += this.entries[i].stepM;
+    }
+    if (distanceM <= 0) {
+      return 0;
+    }
+
+    const timeS = (this.entries[this.entries.length - 1].timestamp - this.entries[0].timestamp) / 1000;
+    return (timeS / distanceM) * 1000;
+  }
+
+  /** Number of points currently inside the window. */
+  get size(): number {
+    return this.entries.length;
+  }
+
+  reset(): void {
+    this.entries = [];
+    this.last = null;
+  }
 }
 
 /**

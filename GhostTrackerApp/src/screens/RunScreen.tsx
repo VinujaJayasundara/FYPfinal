@@ -35,10 +35,11 @@ import {
   calculateRII,
   getRIIStatus,
 } from '../core/algorithms';
-import { useRun, type GPSPoint } from '../context/RunContext';
+import { useRun, type GPSPoint, type RunState } from '../context/RunContext';
 import { useProfile } from '../context/ProfileContext';
 import { P2PSyncService, LivePosition, type P2PStatus } from '../core/p2pSync';
 import { calculateNPI, formatNPI, getNPIStatus } from '../core/npiEngine';
+import { ghostDistanceAtTime } from '../../../GhostTracker/src/core/fairness/ghostComparator';
 
 import {
   IdleMap,
@@ -413,22 +414,6 @@ function IdleView({
 // RUNNING VIEW — Live Map + Stats
 // ═══════════════════════════════════════════════════════════
 
-interface RunState {
-  status: 'idle' | 'running' | 'paused' | 'finished';
-  startTime: number | null;
-  elapsedS: number;
-  distanceM: number;
-  elevationGainM: number;
-  elevationLossM: number;
-  currentAltitudeM: number | null;
-  currentPaceSPerKm: number;
-  avgPaceSPerKm: number;
-  points: GPSPoint[];
-  validPoints: GPSPoint[];
-  filteredCount: number;
-  splitPaces: number[];
-}
-
 function RunningView({
   run,
   onStop,
@@ -471,26 +456,32 @@ function RunningView({
       ? run.validPoints[run.validPoints.length - 1]
       : null;
 
-  // Ghost position — ghost runs at PB pace (6:00/km = 360 s/km)
-  const GHOST_PB_PACE = 360;
-  const ghostDistM = run.elapsedS * (1000 / GHOST_PB_PACE);
+  // Ghost = the personal-best run on this route, replayed by elapsed time
+  const hasGhost = run.ghostCheckpoints.length >= 2;
+  const ghostDistM = hasGhost ? ghostDistanceAtTime(run.ghostCheckpoints, run.elapsedS) : 0;
   const ghostPosition = useMemo(
-    () => getPositionAlongRoute(routeCoords, ghostDistM),
-    [routeCoords, ghostDistM],
+    () => (hasGhost ? getPositionAlongRoute(run.ghostTrack, ghostDistM) : null),
+    [hasGhost, run.ghostTrack, ghostDistM],
   );
 
-  // Ghost lead/lag
-  const ghostLead = run.distanceM - ghostDistM;
-  const ghostLeadText =
-    ghostLead >= 0
-      ? `+${Math.round(ghostLead)}m ahead`
-      : `${Math.round(Math.abs(ghostLead))}m behind`;
-  const ghostLeadColor = ghostLead >= 0 ? '#00FF87' : '#FF3B30';
+  // Ghost time gap (±Δt), refreshed at every 10 m mark: negative = ahead
+  const ghostDelta = run.ghostDeltaS;
+  const ghostLeadText = !hasGhost
+    ? 'First run sets your ghost'
+    : run.ghostFinished
+      ? 'Past the ghost finish'
+      : ghostDelta === null
+        ? 'Ghost ready'
+        : ghostDelta <= 0
+          ? `${Math.abs(ghostDelta).toFixed(1)} s ahead`
+          : `${ghostDelta.toFixed(1)} s behind`;
+  const ghostLeadColor =
+    ghostDelta === null || run.ghostFinished ? '#888' : ghostDelta <= 0 ? '#00FF87' : '#FF3B30';
 
-  // Live RII
+  // Live RII against the PB pace on this route
   const liveRII =
-    run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm)
-      ? calculateRII(GHOST_PB_PACE, run.avgPaceSPerKm)
+    run.pbPaceSPerKm && run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm)
+      ? calculateRII(run.pbPaceSPerKm, run.avgPaceSPerKm)
       : 0;
   const riiStatus = getRIIStatus(liveRII);
 
@@ -567,7 +558,7 @@ function RunningView({
         )}
 
         {/* Ghost status overlay on map */}
-        {ghostPosition && run.distanceM > 5 && (
+        {hasGhost && (
           <View style={styles.ghostOverlay}>
             <Text style={styles.ghostOverlayLabel}>GHOST</Text>
             <Text style={[styles.ghostOverlayText, { color: ghostLeadColor }]}>
@@ -646,20 +637,23 @@ function RunningView({
           </View>
         </View>
 
-        {/* Live RII vs Ghost */}
-        {liveRII > 0 && (
-          <View style={styles.liveRIIBar}>
-            <View style={styles.liveRIILeft}>
-              <Text style={styles.liveRIILabel}>VS GHOST</Text>
-              <Text style={[styles.liveRIIValue, { color: riiStatus.color }]}>
-                RII {liveRII.toFixed(3)}
-              </Text>
-            </View>
+        {/* Live RII and ghost time gap vs the personal best */}
+        <View style={styles.liveRIIBar}>
+          <View style={styles.liveRIILeft}>
+            <Text style={styles.liveRIILabel}>VS GHOST</Text>
+            <Text style={[styles.liveRIIValue, { color: riiStatus.color }]}>
+              RII {liveRII > 0 ? liveRII.toFixed(3) : '-.---'}
+            </Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
             <Text style={[styles.ghostLeadBadge, { color: ghostLeadColor }]}>
               {ghostLeadText}
             </Text>
+            {run.ghostSplitDistanceM !== null && !run.ghostFinished && (
+              <Text style={styles.liveRIILabel}>at {run.ghostSplitDistanceM} m</Text>
+            )}
           </View>
-        )}
+        </View>
 
         {/* ── COMPETITION OVERLAY ─────────────────────── */}
         {hasPeer && peer && (

@@ -5,6 +5,11 @@
  * run tracking survives tab navigation.  Every screen can read the
  * live run state via `useRun()` and trigger start / stop / reset.
  *
+ * Each GPS fix goes through the shared core pipeline (thesis §3.6):
+ *   GpsFilter (1 Hz → accuracy ≤ 50 m → v_inst ≤ 6.94 m/s)
+ *   → haversine distance → 10 s RollingPaceWindow
+ *   → GhostPacer: ±Δt against the personal-best run at every 10 m
+ *
  * On run completion, persists the session + telemetry + ghost data
  * to SQLite via the database layer.
  */
@@ -24,10 +29,16 @@ import * as Haptics from 'expo-haptics';
 import {
   haversineDistanceM,
   calculatePace,
-  isValidGPS,
   calculateRII,
   calculateElevationDelta,
 } from '../core/algorithms';
+import { GpsFilter } from '../../../GhostTracker/src/core/spatial/gpsFilter';
+import { RollingPaceWindow } from '../../../GhostTracker/src/core/spatial/paceCalculator';
+import {
+  buildGhostCheckpoints,
+  GhostPacer,
+  type GhostCheckpoint,
+} from '../../../GhostTracker/src/core/fairness/ghostComparator';
 
 // Database persistence
 import {
@@ -45,7 +56,7 @@ import {
   updateCalibration,
   getUserProfile,
   getAllSessions,
-  type DBTelemetryPoint,
+  getGhostRecords,
 } from '../data/database';
 import { calculateNPI, calculateBMI } from '../core/npiEngine';
 
@@ -76,6 +87,18 @@ export interface RunState {
   validPoints: GPSPoint[];
   filteredCount: number;
   splitPaces: number[];
+  /** Personal-best checkpoints (elapsed time every 10 m); empty when there is no PB yet */
+  ghostCheckpoints: GhostCheckpoint[];
+  /** The PB run's coordinates, for drawing the ghost on the map */
+  ghostTrack: { latitude: number; longitude: number }[];
+  /** Live minus ghost time at the last 10 m mark: negative = ahead, positive = behind */
+  ghostDeltaS: number | null;
+  /** Distance of the 10 m mark ghostDeltaS was measured at */
+  ghostSplitDistanceM: number | null;
+  /** True once the runner is past the end of the PB run */
+  ghostFinished: boolean;
+  /** PB average pace on this route (s/km), or null */
+  pbPaceSPerKm: number | null;
 }
 
 interface RunContextValue {
@@ -106,7 +129,15 @@ const INITIAL_RUN: RunState = {
   validPoints: [],
   filteredCount: 0,
   splitPaces: [],
+  ghostCheckpoints: [],
+  ghostTrack: [],
+  ghostDeltaS: null,
+  ghostSplitDistanceM: null,
+  ghostFinished: false,
+  pbPaceSPerKm: null,
 };
+
+const ROUTE_ID = 'default-route';
 
 // ── Context ───────────────────────────────────────────────
 
@@ -136,6 +167,16 @@ export function RunProvider({ children }: { children: ReactNode }) {
   const seqIndexRef = useRef(0);
   const lastKmDistRef = useRef(0);
   const lastKmTimeRef = useRef(0);
+
+  // Live pipeline state. Kept in refs and updated once per fix, outside the
+  // state updater, so React may re-run the updater without side effects.
+  const filterRef = useRef(new GpsFilter());
+  const paceWindowRef = useRef(new RollingPaceWindow());
+  const ghostPacerRef = useRef<GhostPacer | null>(null);
+  const lastValidRef = useRef<GPSPoint | null>(null);
+  const distanceRef = useRef(0);
+  const startTimeRef = useRef(0);
+  const kmSplitsRef = useRef<number[]>([]);
 
   // ── Acquire initial location on mount ───────────────────
 
@@ -196,25 +237,42 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-    // Reset sequence counters
+    // Load the personal-best ghost for this route (none on the first run)
+    let ghostCheckpoints: GhostCheckpoint[] = [];
+    let ghostTrack: { latitude: number; longitude: number }[] = [];
+    let pbPaceSPerKm: number | null = null;
+    try {
+      const [records, pb] = await Promise.all([
+        getGhostRecords(ROUTE_ID),
+        getPBSession(ROUTE_ID),
+      ]);
+      ghostCheckpoints = buildGhostCheckpoints(records);
+      ghostTrack = records.map((r) => ({ latitude: r.latitude, longitude: r.longitude }));
+      pbPaceSPerKm = pb?.avg_pace_s_per_km ?? null;
+    } catch (e) {
+      console.warn('[Ghost] Could not load the PB ghost:', e);
+    }
+
+    // Reset sequence counters and the live pipeline
+    const startTime = Date.now();
     seqIndexRef.current = 0;
     lastKmDistRef.current = 0;
-    lastKmTimeRef.current = Date.now();
+    lastKmTimeRef.current = startTime;
+    startTimeRef.current = startTime;
+    filterRef.current.reset();
+    paceWindowRef.current.reset();
+    ghostPacerRef.current = new GhostPacer(ghostCheckpoints);
+    lastValidRef.current = null;
+    distanceRef.current = 0;
+    kmSplitsRef.current = [];
 
     setRun({
+      ...INITIAL_RUN,
       status: 'running',
-      startTime: Date.now(),
-      elapsedS: 0,
-      distanceM: 0,
-      elevationGainM: 0,
-      elevationLossM: 0,
-      currentAltitudeM: null,
-      currentPaceSPerKm: 0,
-      avgPaceSPerKm: 0,
-      points: [],
-      validPoints: [],
-      filteredCount: 0,
-      splitPaces: [],
+      startTime,
+      ghostCheckpoints,
+      ghostTrack,
+      pbPaceSPerKm,
     });
 
     // Start GPS tracking at 1 Hz (high accuracy)
@@ -236,88 +294,77 @@ export function RunProvider({ children }: { children: ReactNode }) {
           filtered: false,
         };
 
-        // GPS quality filter
-        const isValid = isValidGPS(point.speed, point.accuracy);
-        point.filtered = !isValid;
+        // Stages 1–3: 1 Hz gate, accuracy ≤ 50 m, v_inst ≤ 6.94 m/s
+        const accepted = filterRef.current.sanitizeFix({ ...point, velocity: point.speed });
+        if (!accepted) {
+          point.filtered = true;
+          setRun((prev) =>
+            prev.status !== 'running'
+              ? prev
+              : { ...prev, points: [...prev.points, point], filteredCount: prev.filteredCount + 1 },
+          );
+          return;
+        }
+
+        // Distance and elevation from the last accepted fix
+        const prevValid = lastValidRef.current;
+        lastValidRef.current = point;
+        let elevDelta = { gain: 0, loss: 0 };
+        if (prevValid) {
+          distanceRef.current += haversineDistanceM(
+            prevValid.latitude,
+            prevValid.longitude,
+            point.latitude,
+            point.longitude,
+          );
+          elevDelta = calculateElevationDelta(prevValid.altitude, point.altitude);
+        }
+        const distanceM = distanceRef.current;
+
+        // 10 s rolling pace (0 = idle sentinel)
+        const rollingPace = paceWindowRef.current.push(point);
+
+        // Ghost ±Δt at every 10 m mark this fix crossed
+        const pacer = ghostPacerRef.current;
+        const deltaBefore = pacer?.latest?.deltaS ?? null;
+        const elapsedAtFixS = Math.max(0, (point.timestamp - startTimeRef.current) / 1000);
+        pacer?.update(distanceM, elapsedAtFixS);
+        const latestSplit = pacer?.latest ?? null;
+        if (deltaBefore !== null && deltaBefore > 0 && latestSplit && latestSplit.deltaS <= 0) {
+          // Moved from behind the ghost to ahead of it
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+
+        // Km split
+        if (Math.floor(distanceM / 1000) > kmSplitsRef.current.length) {
+          const splitDist = distanceM - lastKmDistRef.current;
+          const splitTime = (Date.now() - lastKmTimeRef.current) / 1000;
+          kmSplitsRef.current = [...kmSplitsRef.current, calculatePace(splitDist, splitTime)];
+          lastKmDistRef.current = distanceM;
+          lastKmTimeRef.current = Date.now();
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        const splitPaces = kmSplitsRef.current;
 
         setRun((prev) => {
           if (prev.status !== 'running') return prev;
 
-          const newPoints = [...prev.points, point];
-
-          if (!isValid) {
-            return {
-              ...prev,
-              points: newPoints,
-              filteredCount: prev.filteredCount + 1,
-            };
-          }
-
-          const newValidPoints = [...prev.validPoints, point];
-          let newDistance = prev.distanceM;
-          let currentPace = prev.currentPaceSPerKm;
-          let splitPaces = [...prev.splitPaces];
-          let elevGain = prev.elevationGainM;
-          let elevLoss = prev.elevationLossM;
-
-          // Calculate distance and elevation from last valid point
-          if (newValidPoints.length >= 2) {
-            const prevPoint = newValidPoints[newValidPoints.length - 2];
-            const dist = haversineDistanceM(
-              prevPoint.latitude,
-              prevPoint.longitude,
-              point.latitude,
-              point.longitude,
-            );
-
-            // Reject teleportation (>50 m in ~1 second)
-            if (dist < 50) {
-              newDistance += dist;
-              const timeDelta =
-                (point.timestamp - prevPoint.timestamp) / 1000;
-              if (dist > 0.5 && timeDelta > 0) {
-                currentPace = calculatePace(dist, timeDelta);
-              }
-            }
-
-            // Elevation tracking (with noise filtering)
-            const elevDelta = calculateElevationDelta(
-              prevPoint.altitude,
-              point.altitude,
-            );
-            elevGain += elevDelta.gain;
-            elevLoss += elevDelta.loss;
-          }
-
-          // Check for km split
-          const kmCovered = Math.floor(newDistance / 1000);
-          if (kmCovered > splitPaces.length) {
-            const splitDist = newDistance - lastKmDistRef.current;
-            const splitTime = (Date.now() - lastKmTimeRef.current) / 1000;
-            const splitPace = calculatePace(splitDist, splitTime);
-            splitPaces.push(splitPace);
-            lastKmDistRef.current = newDistance;
-            lastKmTimeRef.current = Date.now();
-            Haptics.notificationAsync(
-              Haptics.NotificationFeedbackType.Success,
-            );
-          }
-
-          const elapsed =
-            (Date.now() - (prev.startTime || Date.now())) / 1000;
-          const avgPace = calculatePace(newDistance, elapsed);
+          const elapsed = (Date.now() - (prev.startTime || Date.now())) / 1000;
 
           return {
             ...prev,
-            points: newPoints,
-            validPoints: newValidPoints,
-            distanceM: newDistance,
-            elevationGainM: elevGain,
-            elevationLossM: elevLoss,
+            points: [...prev.points, point],
+            validPoints: [...prev.validPoints, point],
+            distanceM,
+            elevationGainM: prev.elevationGainM + elevDelta.gain,
+            elevationLossM: prev.elevationLossM + elevDelta.loss,
             currentAltitudeM: point.altitude,
-            currentPaceSPerKm: currentPace,
-            avgPaceSPerKm: avgPace,
+            currentPaceSPerKm: rollingPace,
+            avgPaceSPerKm: calculatePace(distanceM, elapsed),
             splitPaces,
+            ghostDeltaS: latestSplit?.deltaS ?? null,
+            ghostSplitDistanceM: latestSplit?.distanceM ?? null,
+            ghostFinished: pacer?.finished ?? false,
           };
         });
       },
@@ -329,8 +376,6 @@ export function RunProvider({ children }: { children: ReactNode }) {
   const incrementDbVersion = useCallback(() => setDbVersion(v => v + 1), []);
 
   // ── Persist Run to SQLite ───────────────────────────────
-
-  const ROUTE_ID = 'default-route';
 
   const persistRun = useCallback(async (finishedRun: RunState) => {
     try {
