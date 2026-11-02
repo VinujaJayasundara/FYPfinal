@@ -171,6 +171,22 @@ export async function initDatabase(): Promise<void> {
       FOREIGN KEY (entry_id) REFERENCES leaderboard(id) ON DELETE CASCADE
     );
 
+    -- One row per completed sync with a peer (thesis ST-03 / Table 34 measurements)
+    CREATE TABLE IF NOT EXISTS sync_log (
+      id TEXT PRIMARY KEY,
+      transport TEXT NOT NULL,
+      peer_id TEXT NOT NULL,
+      started_at INTEGER NOT NULL,
+      t_sync_ms INTEGER NOT NULL,
+      bytes_sent INTEGER NOT NULL DEFAULT 0,
+      bytes_received INTEGER NOT NULL DEFAULT 0,
+      frames_sent INTEGER NOT NULL DEFAULT 0,
+      entries_sent INTEGER NOT NULL DEFAULT 0,
+      entries_received INTEGER NOT NULL DEFAULT 0,
+      mtu INTEGER,
+      rssi INTEGER
+    );
+
     CREATE INDEX IF NOT EXISTS idx_telemetry_session ON telemetry_points(session_id);
     CREATE INDEX IF NOT EXISTS idx_telemetry_seq ON telemetry_points(session_id, seq_index);
     CREATE INDEX IF NOT EXISTS idx_ghost_route ON ghost_records(route_id);
@@ -559,4 +575,50 @@ export async function getTotalDistance(): Promise<number> {
     `SELECT COALESCE(SUM(total_distance_m), 0) as total FROM run_sessions WHERE ended_at IS NOT NULL`,
   );
   return row?.total ?? 0;
+}
+
+// ── Sync log (per-sync measurements for the thesis evaluation) ──
+
+export interface DBSyncLogRow {
+  id: string;
+  transport: 'ble' | 'relay';
+  peer_id: string;
+  started_at: number;
+  t_sync_ms: number;
+  bytes_sent: number;
+  bytes_received: number;
+  frames_sent: number;
+  entries_sent: number;
+  entries_received: number;
+  mtu: number | null;
+  rssi: number | null;
+}
+
+export async function insertSyncLog(row: Omit<DBSyncLogRow, 'id'>): Promise<void> {
+  await getDb().runAsync(
+    `INSERT INTO sync_log (id, transport, peer_id, started_at, t_sync_ms, bytes_sent, bytes_received,
+       frames_sent, entries_sent, entries_received, mtu, rssi)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [generateId(), row.transport, row.peer_id, row.started_at, row.t_sync_ms, row.bytes_sent,
+      row.bytes_received, row.frames_sent, row.entries_sent, row.entries_received, row.mtu, row.rssi],
+  );
+}
+
+export async function getSyncLog(): Promise<DBSyncLogRow[]> {
+  return await getDb().getAllAsync<DBSyncLogRow>(`SELECT * FROM sync_log ORDER BY started_at`);
+}
+
+/** The sync log as CSV, for export from the Sync tab. */
+export async function getSyncLogCsv(): Promise<string> {
+  const rows = await getSyncLog();
+  const header = 'started_at_iso,transport,peer_id,t_sync_ms,bytes_sent,bytes_received,frames_sent,entries_sent,entries_received,mtu,rssi';
+  const lines = rows.map(r => [
+    new Date(r.started_at).toISOString(), r.transport, r.peer_id, r.t_sync_ms, r.bytes_sent, r.bytes_received,
+    r.frames_sent, r.entries_sent, r.entries_received, r.mtu ?? '', r.rssi ?? '',
+  ].join(','));
+  return [header, ...lines].join('\n');
+}
+
+export async function clearSyncLog(): Promise<void> {
+  await getDb().runAsync(`DELETE FROM sync_log`);
 }

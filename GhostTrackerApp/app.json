@@ -48,7 +48,14 @@
         }
       ],
       "expo-sqlite",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "neverForLocation": true
+        }
+      ]
     ]
   }
 }

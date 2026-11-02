@@ -11,6 +11,8 @@ export {
   decodeBinaryPayload,
   splitIntoFrames,
   FrameAssembler,
+  utf8Encode,
+  utf8Decode,
   BINARY_PROTOCOL_VERSION,
   FRAME_HEADER_BYTES,
 } from './stateVector';
@@ -20,3 +22,4 @@ export { createDigest, computeDelta, peerIsUpToDate, stateHash, hashesEqual } fr
 export type { SyncDigest } from './antiEntropy';
 export { GossipSession, bytesToBase64, base64ToBytes } from './gossipSession';
 export type { GossipMessage, GossipStore, GossipEvent, GossipOptions } from './gossipSession';
+export { encodeGossipMessage, decodeGossipMessage } from './gossipCodec';
