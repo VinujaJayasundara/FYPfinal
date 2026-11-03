@@ -154,6 +154,21 @@ Makes Fig 2, §3.3.1, §3.5.2, §3.5.5, Table 22, Table 26 and Appendix B.2 true
 
 **Done when:** the thesis Table 26 rows UT-01…UT-05 each map to a named, passing test (UT-01/02 from Phase B, UT-05 = existing G-Counter tests).
 
+**Status (3 Nov) ✅ code done.** `olsInference.ts`, `npiCalculator.ts`, `riiEvaluator.ts`, `riiEngine.ts` (facade + `evaluateRun`). Coefficients come from one file (`src/core/fairness/model/npi_model_coefficients.json`, test-checked identical to the training output); the app's `npiEngine.ts` is a re-export. Percentile labels corrected. `__tests__/core/fairnessEngine.test.ts` (18 tests); core 200/200.
+
+**Thesis corrections found while checking every printed number against the trained model** (the code uses the model; the text should change):
+
+| Where | Thesis says | Model / measurement gives | Suggested fix |
+|---|---|---|---|
+| Table 26 UT-03 | haversine 1,000.02 m, error < 0.01% vs WGS84 | Against an exact WGS84 1,000 m geodesic (Colombo): 998.83–1,005.47 m, −0.12% to +0.55% | "within 0.6% of a WGS84 geodesic (spherical-earth model); exact on the 6,371 km sphere" |
+| σ everywhere (Eq 1.4, 2.10, 4.2, Table B.1) | σ = 22.50 s/km (also 24.412 in App. B) | Trained model file: σ = 24.158 (residual standard error, the value the app uses) | Use σ = 24.16 throughout; then UT-04 NPI = +0.95 (the thesis already gives this as the RMSE variant) |
+| Table 26 UT-04 | Expected 397.97, NPI +1.02 | 397.96 with the stored coefficient 0.036477 (397.97 only with it rounded to 0.0365); NPI +0.95 with σ 24.158 | 397.96 s/km, NPI +0.95 |
+| Table 32 / §4.5.5 / Ch 6 Kasun | Expected 254.45, NPI +0.42 | Expected 340.24, NPI +3.94 | Recompute; **with the model's numbers Kasun leads on NPI**, Nimal still wins on RII (1.105 vs 0.980). Rewrite the conclusion or choose new case-study inputs |
+| Table 32 Nimal | Expected 411.05, NPI +1.38 | Expected 410.37, NPI +1.26 | Recompute |
+| Model quality (§4.4, App. B) | R² 0.7480 / test 0.7458; elsewhere R² 0.8399 | Model file: R² 0.7507, adj 0.7496, test 0.7248, F 718.9 | Use the model file's figures |
+| Table B.1 interpretations | "+1.614 s/km per year", "+3.543 per BMI", "+12.85 female", "+4.10 per km" | Coefficients are 1.7579, 3.3918, 13.8648, 4.70 per km | Match the coefficients |
+| Table B.2 percentiles | Top 2.5% / 7.0% / 16.0%; NPI < −1 "bottom 2.5%" | Normal tails: 2.3% / 6.7% / 15.9%; NPI < −1 is the bottom 15.9% | Use the corrected labels (as the app now shows) |
+
 ---
 
 ## Phase E — Database to match the thesis (11 – 12 Nov)

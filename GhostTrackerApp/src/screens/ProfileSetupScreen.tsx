@@ -105,7 +105,7 @@ export default function ProfileSetupScreen({ onSave, onBack, existingProfile }: 
   // Calculate preview expected pace
   const expectedPace = isValid ? predictExpectedPace(
     { age: ageNum, weightKg: weightNum, heightCm: heightNum, bmi, gender },
-    { altitudeM: 15, distanceM: 2500, avgPaceSPerKm: 0 },
+    { altitudeM: 15, distanceM: 2500 },
   ) : 0;
 
   const expectedPaceFormatted = expectedPace > 0

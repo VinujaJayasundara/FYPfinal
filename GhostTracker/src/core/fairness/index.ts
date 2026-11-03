@@ -1,4 +1,27 @@
-export { calculateRII, calculateCumulativeRII, getRIIStatus, formatRII } from './riiEngine';
+export {
+  evaluateRun,
+  calculateRII,
+  calculateCumulativeRII,
+  getRIIStatus,
+  formatRII,
+  calculateNPIScore,
+  calculateNPI,
+  getNPIStatus,
+  formatNPI,
+  NPI_MODEL,
+  calculateBMI,
+  predictExpectedPace,
+  getModelInterpretation,
+  getModelQuality,
+} from './riiEngine';
+export type {
+  RunEvaluation,
+  NPIStatus,
+  NPIResult,
+  NpiModel,
+  RunnerCovariates,
+  RouteCovariates,
+} from './riiEngine';
 export {
   matchGhostPosition,
   calculateLeadLagM,
