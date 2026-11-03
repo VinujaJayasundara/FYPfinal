@@ -107,6 +107,8 @@ interface RunContextValue {
   initialLocation: { latitude: number; longitude: number } | null;
   startRun: () => Promise<void>;
   stopRun: () => void;
+  /** End the run immediately without the confirmation dialog. */
+  finishRun: () => void;
   resetRun: () => void;
   /** Incremented after every successful DB persist — UI tabs can use this to trigger refetch */
   dbVersion: number;
@@ -547,6 +549,15 @@ export function RunProvider({ children }: { children: ReactNode }) {
     }
   }, [run.status]);
 
+  // ── Finish Run (no confirmation; used when a race reaches its target) ──
+
+  const finishRun = useCallback(() => {
+    locationSub.current?.remove();
+    locationSub.current = null;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setRun((prev) => (prev.status === 'running' ? { ...prev, status: 'finished' } : prev));
+  }, []);
+
   // ── Stop Run ────────────────────────────────────────────
 
   const stopRun = useCallback(() => {
@@ -591,7 +602,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   return (
     <RunContext.Provider
-      value={{ run, initialLocation, startRun, stopRun, resetRun, dbVersion, incrementDbVersion }}
+      value={{ run, initialLocation, startRun, stopRun, finishRun, resetRun, dbVersion, incrementDbVersion }}
     >
       {children}
     </RunContext.Provider>

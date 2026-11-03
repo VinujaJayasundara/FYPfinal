@@ -76,11 +76,13 @@ export type BlePairing = 'invited-out' | 'invited-in' | 'paired';
  * the gossip codec never uses as a kind (1-3), followed by UTF-8 JSON.
  */
 const CONTROL_MARKER = 0xc0;
-type ControlType = 'hello' | 'invite' | 'accept' | 'decline' | 'unpair';
+type ControlType = 'hello' | 'invite' | 'accept' | 'decline' | 'unpair' | 'race';
 interface ControlMessage {
   t: ControlType;
   from: string;
   alias?: string;
+  /** Race payload (only between paired runners). */
+  r?: unknown;
 }
 
 export interface BlePeer {
@@ -150,6 +152,8 @@ export class BluetoothSync {
   onDecline: (deviceId: string, alias: string) => void = () => {};
   /** Pairing with a peer started (paired) or ended (null). */
   onPairingChange: (deviceId: string, alias: string, pairing: BlePairing | null) => void = () => {};
+  /** A race message from a paired runner. */
+  onRace: (deviceId: string, payload: unknown) => void = () => {};
 
   private readonly tag: string;
   private manager: BleManager | null = null;
@@ -162,6 +166,12 @@ export class BluetoothSync {
   private stateSub: Subscription | null = null;
   private started = false;
   private pairing = new Map<string, BlePairing>();
+  /**
+   * Runners who accepted during this Bluetooth session. If the link drops
+   * (out of range, interference), they are re-paired automatically when it
+   * comes back, without asking again. Cleared by stop() or unpair().
+   */
+  private trusted = new Set<string>();
   private readonly ownsManager: boolean;
 
   /**
@@ -243,6 +253,7 @@ export class BluetoothSync {
     this.seen.clear();
     this.connecting.clear();
     this.pairing.clear();
+    this.trusted.clear();
     this.nativeSubs.forEach(s => s.remove());
     this.nativeSubs = [];
     this.stateSub?.remove();
@@ -287,8 +298,17 @@ export class BluetoothSync {
     this.emitPeers();
   }
 
+  /** Send a race message to a paired runner. False if not paired / no link. */
+  sendRace(deviceId: string, payload: unknown): boolean {
+    const link = this.linkFor(deviceId);
+    if (!link || this.pairing.get(deviceId) !== 'paired') return false;
+    this.sendControl(link, 'race', payload);
+    return true;
+  }
+
   /** Stop syncing with a paired peer (the link itself stays up). */
   unpair(deviceId: string): void {
+    this.trusted.delete(deviceId);
     const link = this.linkFor(deviceId);
     if (link) this.sendControl(link, 'unpair');
     if (this.pairing.has(deviceId)) {
@@ -307,14 +327,16 @@ export class BluetoothSync {
   private setPaired(link: Link): void {
     if (!link.deviceId) return;
     this.pairing.set(link.deviceId, 'paired');
+    this.trusted.add(link.deviceId);
     this.onLog(`🤝 Paired with ${this.nameOf(link)}: leaderboards will sync`);
     this.onPairingChange(link.deviceId, this.nameOf(link), 'paired');
     this.emitPeers();
   }
 
-  private sendControl(link: Link, t: ControlType): void {
+  private sendControl(link: Link, t: ControlType, r?: unknown): void {
     const msg: ControlMessage = { t, from: this.deviceId };
     if (t === 'hello' || t === 'invite') msg.alias = this.alias;
+    if (r !== undefined) msg.r = r;
     const json = utf8Encode(JSON.stringify(msg));
     const bytes = new Uint8Array(json.length + 1);
     bytes[0] = CONTROL_MARKER;
@@ -335,9 +357,21 @@ export class BluetoothSync {
 
     switch (msg.t) {
       case 'hello':
+        // A runner we already accepted came back in range: re-pair silently
+        if (!state && this.trusted.has(from)) {
+          this.pairing.set(from, 'invited-out');
+          this.sendControl(link, 'invite');
+          this.onLog(`🔁 ${this.nameOf(link)} is back in range, reconnecting`);
+        }
+        break;
+      case 'race':
+        if (state === 'paired') this.onRace(from, msg.r);
         break;
       case 'invite':
-        if (state === 'paired') {
+        if (!state && this.trusted.has(from)) {
+          this.sendControl(link, 'accept');
+          this.setPaired(link);
+        } else if (state === 'paired') {
           this.sendControl(link, 'accept'); // they lost our pairing; reconfirm
         } else if (state === 'invited-out') {
           // We invited each other: that is consent on both sides

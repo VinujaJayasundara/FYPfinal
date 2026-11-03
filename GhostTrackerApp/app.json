@@ -50,6 +50,12 @@
       "expo-sqlite",
       "expo-status-bar",
       [
+        "expo-notifications",
+        {
+          "color": "#BF5AF2"
+        }
+      ],
+      [
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": false,

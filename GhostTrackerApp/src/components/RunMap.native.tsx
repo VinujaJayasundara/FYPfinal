@@ -97,6 +97,7 @@ export function RunningMap({
   currentPosition,
   ghostPosition,
   peerPosition,
+  raceColors,
   onPanDrag,
 }: {
   mapRef: React.RefObject<any>;
@@ -105,6 +106,8 @@ export function RunningMap({
   currentPosition: Coordinate | null;
   ghostPosition: Coordinate | null;
   peerPosition?: { latitude: number; longitude: number; alias?: string } | null;
+  /** Connected race: you / friend / route colours (defaults otherwise). */
+  raceColors?: { me: string; friend: string; route: string } | null;
   onPanDrag: () => void;
 }) {
   return (
@@ -122,7 +125,7 @@ export function RunningMap({
       {routeCoords.length >= 2 && (
         <Polyline
           coordinates={routeCoords}
-          strokeColor="#22c55e"
+          strokeColor={raceColors?.route ?? '#22c55e'}
           strokeWidth={4}
         />
       )}
@@ -150,11 +153,11 @@ export function RunningMap({
           tracksViewChanges={false}
         >
           <View style={markerStyles.peerMarkerWrapper}>
-            <View style={markerStyles.peerLabel}>
+            <View style={[markerStyles.peerLabel, raceColors && { backgroundColor: raceColors.friend }]}>
               <Text style={markerStyles.peerLabelText}>{peerPosition.alias || 'Peer'}</Text>
             </View>
-            <View style={markerStyles.peerMarkerPulse} />
-            <View style={markerStyles.peerMarkerDot} />
+            <View style={[markerStyles.peerMarkerPulse, raceColors && { backgroundColor: raceColors.friend + '4D' }]} />
+            <View style={[markerStyles.peerMarkerDot, raceColors && { backgroundColor: raceColors.friend }]} />
           </View>
         </Marker>
       )}
@@ -166,8 +169,8 @@ export function RunningMap({
           tracksViewChanges={false}
         >
           <View style={markerStyles.runnerMarker}>
-            <View style={markerStyles.runnerMarkerPulse} />
-            <View style={markerStyles.runnerMarkerDot} />
+            <View style={[markerStyles.runnerMarkerPulse, raceColors && { backgroundColor: raceColors.me + '4D' }]} />
+            <View style={[markerStyles.runnerMarkerDot, raceColors && { backgroundColor: raceColors.me }]} />
           </View>
         </Marker>
       )}

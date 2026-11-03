@@ -38,6 +38,8 @@ import {
 import { useRun, type GPSPoint, type RunState } from '../context/RunContext';
 import { useProfile } from '../context/ProfileContext';
 import { FriendConnectButton } from '../components/FriendConnect';
+import { RaceSetupCard, RaceLiveCard } from '../components/RaceUI';
+import { useRace, RACE_COLOR, RACE_ME_COLOR, RACE_FRIEND_COLOR } from '../context/RaceContext';
 import { P2PSyncService, LivePosition, type P2PStatus } from '../core/p2pSync';
 import { calculateNPI, formatNPI, getNPIStatus } from '../core/npiEngine';
 import { ghostDistanceAtTime } from '../../../GhostTracker/src/core/fairness/ghostComparator';
@@ -283,6 +285,7 @@ function IdleView({
         </TouchableOpacity>
 
         <FriendConnectButton />
+        <RaceSetupCard />
 
         <View style={styles.infoRow}>
           <View style={styles.infoPill}>
@@ -432,6 +435,15 @@ function RunningView({
 }) {
   const [followCamera, setFollowCamera] = useState(true);
 
+  // Connected race: friend's live pin (orange), me blue, purple route
+  const { race } = useRace();
+  const inRace = race !== null && race.phase !== 'cancelled' && race.me.status !== 'not-started';
+  const raceColors = inRace ? { me: RACE_ME_COLOR, friend: RACE_FRIEND_COLOR, route: RACE_COLOR } : null;
+  const racePeer =
+    inRace && race.friend.latitude !== null && race.friend.longitude !== null
+      ? { latitude: race.friend.latitude, longitude: race.friend.longitude, alias: race.friendAlias }
+      : null;
+
   const distKm = (run.distanceM / 1000).toFixed(2);
   const elapsed = formatTime(run.elapsedS);
   const pace =
@@ -536,6 +548,8 @@ function RunningView({
           routeCoords={routeCoords}
           currentPosition={currentPosition}
           ghostPosition={ghostPosition}
+          peerPosition={racePeer}
+          raceColors={raceColors}
           onPanDrag={() => setFollowCamera(false)}
         />
 
@@ -592,6 +606,9 @@ function RunningView({
         contentContainerStyle={styles.statsPanelContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Connected race: live gap and both runners */}
+        <RaceLiveCard />
+
         {/* Main distance */}
         <View style={styles.mainStat}>
           <Text style={styles.mainStatValue}>{distKm}</Text>

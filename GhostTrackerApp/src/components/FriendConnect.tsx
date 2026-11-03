@@ -10,6 +10,8 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useBluetooth } from '../context/BluetoothContext';
+import { useRace, RACE_COLOR, RACE_SYMBOL } from '../context/RaceContext';
+import { RaceDistancePicker } from './RaceUI';
 import type { BlePeer } from '../core/BluetoothSync';
 
 const C = {
@@ -77,7 +79,7 @@ export function FriendConnectButton() {
             )}
 
             {bt.peers.map((peer, i) => (
-              <PeerRow key={peer.tag} peer={peer} first={i === 0} />
+              <PeerRow key={peer.tag} peer={peer} first={i === 0} onRaceSet={() => setOpen(false)} />
             ))}
 
             <View style={styles.footer}>
@@ -103,9 +105,12 @@ export function FriendConnectButton() {
   );
 }
 
-function PeerRow({ peer, first }: { peer: BlePeer; first: boolean }) {
+function PeerRow({ peer, first, onRaceSet }: { peer: BlePeer; first: boolean; onRaceSet: () => void }) {
   const bt = useBluetooth();
+  const { race, startRace } = useRace();
+  const [picking, setPicking] = useState(false);
   const name = peer.alias ?? 'Nearby runner';
+  const raceBusy = race !== null && race.phase !== 'done' && race.phase !== 'cancelled';
   const ready = peer.status === 'connected' && peer.deviceId !== null;
 
   let action: React.ReactNode;
@@ -134,15 +139,38 @@ function PeerRow({ peer, first }: { peer: BlePeer; first: boolean }) {
   }
 
   return (
-    <View style={[styles.peer, !first && styles.peerBorder]}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.peerName}>{name}</Text>
-        <Text style={styles.peerMeta}>
-          {peer.rssi !== null ? `Signal ${peer.rssi} dBm` : 'Signal --'}
-          {peer.pairing === 'paired' ? ' · tap to disconnect' : ''}
-        </Text>
+    <View style={[!first && styles.peerBorder]}>
+      <View style={styles.peer}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.peerName}>{name}</Text>
+          <Text style={styles.peerMeta}>
+            {peer.rssi !== null ? `Signal ${peer.rssi} dBm` : 'Signal --'}
+            {peer.pairing === 'paired' ? ' · tap Connected to disconnect' : ''}
+          </Text>
+        </View>
+        {peer.pairing === 'paired' && !raceBusy && (
+          <TouchableOpacity
+            style={[styles.action, { borderColor: RACE_COLOR, marginRight: 8 }]}
+            onPress={() => setPicking(p => !p)}
+          >
+            <Text style={[styles.actionText, { color: RACE_COLOR }]}>{RACE_SYMBOL} Race</Text>
+          </TouchableOpacity>
+        )}
+        {action}
       </View>
-      {action}
+      {picking && peer.pairing === 'paired' && !raceBusy && (
+        <View style={{ paddingBottom: 12 }}>
+          <Text style={styles.peerMeta}>Pick the race distance; {name} sees it before starting.</Text>
+          <RaceDistancePicker
+            onPick={m => {
+              if (peer.deviceId && startRace(peer.deviceId, name, m)) {
+                setPicking(false);
+                onRaceSet();
+              }
+            }}
+          />
+        </View>
+      )}
     </View>
   );
 }

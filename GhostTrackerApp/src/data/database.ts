@@ -192,6 +192,25 @@ export async function initDatabase(): Promise<void> {
       rssi INTEGER
     );
 
+    -- Connected races (Phase C+): one row per finished race, from this
+    -- phone's point of view. Cancelled races are never stored.
+    CREATE TABLE IF NOT EXISTS race_results (
+      id TEXT PRIMARY KEY,
+      race_id TEXT NOT NULL UNIQUE,
+      friend_id TEXT NOT NULL,
+      friend_alias TEXT NOT NULL,
+      target_m REAL NOT NULL,
+      outcome TEXT NOT NULL,
+      my_status TEXT NOT NULL,
+      friend_status TEXT NOT NULL,
+      my_time_s REAL,
+      friend_time_s REAL,
+      my_pace_s_per_km REAL,
+      friend_pace_s_per_km REAL,
+      my_started_at INTEGER,
+      created_at INTEGER NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_telemetry_session ON telemetry_points(session_id);
     CREATE INDEX IF NOT EXISTS idx_telemetry_seq ON telemetry_points(session_id, seq_index);
     CREATE INDEX IF NOT EXISTS idx_ghost_route ON ghost_records(route_id);
@@ -643,4 +662,65 @@ export async function getSyncLogCsv(): Promise<string> {
 
 export async function clearSyncLog(): Promise<void> {
   await getDb().runAsync(`DELETE FROM sync_log`);
+}
+
+// ── Connected race results (Phase C+) ─────────────────────
+
+export interface DBRaceResult {
+  id: string;
+  race_id: string;
+  friend_id: string;
+  friend_alias: string;
+  target_m: number;
+  outcome: 'win' | 'loss' | 'tie' | 'none';
+  my_status: string;
+  friend_status: string;
+  my_time_s: number | null;
+  friend_time_s: number | null;
+  my_pace_s_per_km: number | null;
+  friend_pace_s_per_km: number | null;
+  my_started_at: number | null;
+  created_at: number;
+}
+
+/** Store a finished race once (race_id is unique). */
+export async function insertRaceResult(row: Omit<DBRaceResult, 'id' | 'created_at'>): Promise<void> {
+  await getDb().runAsync(
+    `INSERT OR IGNORE INTO race_results (id, race_id, friend_id, friend_alias, target_m, outcome, my_status, friend_status,
+       my_time_s, friend_time_s, my_pace_s_per_km, friend_pace_s_per_km, my_started_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      generateId(), row.race_id, row.friend_id, row.friend_alias, row.target_m, row.outcome, row.my_status,
+      row.friend_status, row.my_time_s, row.friend_time_s, row.my_pace_s_per_km, row.friend_pace_s_per_km,
+      row.my_started_at, Date.now(),
+    ],
+  );
+}
+
+export async function getRaceResults(): Promise<DBRaceResult[]> {
+  return await getDb().getAllAsync<DBRaceResult>(`SELECT * FROM race_results ORDER BY created_at DESC`);
+}
+
+export interface RaceSummary {
+  races: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  /** Fastest finish per distance (m → s). */
+  bestTimeByDistance: Record<number, number>;
+}
+
+export async function getRaceSummary(): Promise<RaceSummary> {
+  const rows = await getRaceResults();
+  const summary: RaceSummary = { races: rows.length, wins: 0, losses: 0, ties: 0, bestTimeByDistance: {} };
+  for (const r of rows) {
+    if (r.outcome === 'win') summary.wins++;
+    else if (r.outcome === 'loss') summary.losses++;
+    else if (r.outcome === 'tie') summary.ties++;
+    if (r.my_time_s !== null) {
+      const best = summary.bestTimeByDistance[r.target_m];
+      if (best === undefined || r.my_time_s < best) summary.bestTimeByDistance[r.target_m] = r.my_time_s;
+    }
+  }
+  return summary;
 }

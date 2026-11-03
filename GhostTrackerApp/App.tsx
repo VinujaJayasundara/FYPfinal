@@ -52,6 +52,10 @@ import { haversineDistanceM } from './src/core/algorithms';
 import { RunProvider, useRun } from './src/context/RunContext';
 import { ProfileProvider, useProfile } from './src/context/ProfileContext';
 import { BluetoothProvider } from './src/context/BluetoothContext';
+import { RaceProvider } from './src/context/RaceContext';
+import { RaceBanner, RaceResultsModal, RaceLeaderboardCard } from './src/components/RaceUI';
+import { RACE_COLOR, RACE_SYMBOL } from './src/context/RaceContext';
+import { getRaceResults, type DBRaceResult } from './src/data/database';
 
 // Screens
 import RunScreen from './src/screens/RunScreen';
@@ -197,7 +201,11 @@ export default function App() {
     <ProfileProvider>
       <RunProvider>
         <BluetoothProvider>
-          <AppContent />
+          <RaceProvider>
+            <AppContent />
+            <RaceBanner />
+            <RaceResultsModal />
+          </RaceProvider>
         </BluetoothProvider>
       </RunProvider>
     </ProfileProvider>
@@ -486,11 +494,17 @@ function SessionsTab() {
   const { dbVersion } = useRun();
   const { profile } = useProfile();
   const [sessions, setSessions] = useState<DBSession[]>([]);
+  const [races, setRaces] = useState<DBRaceResult[]>([]);
+
+  // A run belongs to a connected race if it started within 10 s of the race start
+  const raceFor = (startedAt: number) =>
+    races.find(r => r.my_started_at !== null && Math.abs(r.my_started_at - startedAt) < 10_000);
 
   useEffect(() => {
     (async () => {
       try {
         const all = await getAllSessions();
+        setRaces(await getRaceResults());
         setSessions(all.filter(s => s.ended_at !== null));
       } catch (e) {
         console.error('[Sessions] Load failed:', e);
@@ -550,12 +564,22 @@ function SessionsTab() {
           const riiStatus = getRIIStatus(riiScore);
           const date = new Date(s.started_at);
           const dateStr = `${date.getDate()}/${date.getMonth() + 1}`;
+          const race = raceFor(s.started_at);
 
           return (
-            <View key={s.id} style={[styles.sessionCard, s.is_pb === 1 && styles.sessionCardPB]}>
+            <View
+              key={s.id}
+              style={[styles.sessionCard, s.is_pb === 1 && styles.sessionCardPB, race && { borderColor: RACE_COLOR, borderWidth: 1 }]}
+            >
               <View style={styles.sessionLeft}>
                 <Text style={styles.sessionNum}>Run {sessions.length - i}</Text>
                 <Text style={styles.sessionDate}>{dateStr}</Text>
+                {race && (
+                  <Text style={{ color: RACE_COLOR, fontSize: 11, fontWeight: '700', marginTop: 2 }} numberOfLines={1}>
+                    {RACE_SYMBOL} vs {race.friend_alias}
+                    {race.outcome === 'win' ? ' · WIN' : race.outcome === 'loss' ? ' · LOSS' : ''}
+                  </Text>
+                )}
               </View>
               <View style={styles.sessionCenter}>
                 <Text style={styles.sessionPace}>
@@ -815,6 +839,9 @@ function LeaderboardTab() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Connected races (win/loss, best times) */}
+      <RaceLeaderboardCard dbVersion={dbVersion} />
 
       {/* Your entries from DB */}
       {sortedDbEntries.length > 0 && (

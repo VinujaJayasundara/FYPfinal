@@ -88,6 +88,8 @@ export function RunningMap({
   currentPosition: Coordinate | null;
   ghostPosition: Coordinate | null;
   peerPosition?: { latitude: number; longitude: number; alias?: string } | null;
+  /** Connected race: you / friend / route colours (defaults otherwise). */
+  raceColors?: { me: string; friend: string; route: string } | null;
   onPanDrag: () => void;
 }) {
   const center = currentPosition || { latitude: initialRegion.latitude, longitude: initialRegion.longitude };

@@ -46,6 +46,11 @@ interface BluetoothContextValue {
   unpair: (deviceId: string) => void;
   setMessageHandler: (fn: ((m: GossipMessage) => void) | null) => void;
   addLogListener: (fn: (msg: string) => void) => () => void;
+  /** Race messages to / from a paired runner. */
+  sendRace: (deviceId: string, payload: unknown) => boolean;
+  addRaceListener: (fn: (deviceId: string, payload: unknown) => void) => () => void;
+  /** Pairing changes (paired or ended) for the race to react to. */
+  addPairingListener: (fn: (deviceId: string, paired: boolean) => void) => () => void;
 }
 
 const BluetoothContext = createContext<BluetoothContextValue | null>(null);
@@ -64,6 +69,8 @@ export function BluetoothProvider({ children }: { children: ReactNode }) {
 
   const messageHandlerRef = useRef<((m: GossipMessage) => void) | null>(null);
   const logListenersRef = useRef(new Set<(msg: string) => void>());
+  const raceListenersRef = useRef(new Set<(deviceId: string, payload: unknown) => void>());
+  const pairingListenersRef = useRef(new Set<(deviceId: string, paired: boolean) => void>());
 
   const log = useCallback((msg: string) => {
     logListenersRef.current.forEach(fn => fn(msg));
@@ -74,7 +81,14 @@ export function BluetoothProvider({ children }: { children: ReactNode }) {
     if (!available) return;
     const manager = new BleManager();
     managerRef.current = manager;
-    const sub = manager.onStateChange(state => setAdapterOn(state === State.PoweredOn), true);
+    // Read the current state ourselves so a failure (e.g. before the
+    // Bluetooth permission is granted) is handled instead of becoming an
+    // unhandled promise rejection inside the library.
+    const sub = manager.onStateChange(state => setAdapterOn(state === State.PoweredOn), false);
+    manager
+      .state()
+      .then(state => setAdapterOn(state === State.PoweredOn))
+      .catch(() => setAdapterOn(null));
     return () => {
       sub.remove();
       bleRef.current?.stop();
@@ -119,6 +133,12 @@ export function BluetoothProvider({ children }: { children: ReactNode }) {
         { cancelable: false },
       );
     };
+    service.onRace = (deviceId, payload) => {
+      raceListenersRef.current.forEach(fn => fn(deviceId, payload));
+    };
+    service.onPairingChange = (deviceId, _alias, pairing) => {
+      pairingListenersRef.current.forEach(fn => fn(deviceId, pairing === 'paired'));
+    };
     service.onDecline = (_deviceId, alias) => {
       Alert.alert('Invitation declined', `${alias} declined your invitation.`);
     };
@@ -142,6 +162,44 @@ export function BluetoothProvider({ children }: { children: ReactNode }) {
     bleRef.current?.setAlias(profile.name);
   }, [profile.name]);
 
+  // Functions that only go through refs: created once, so consumers' effects
+  // (gossip handler, race timer) are not reset by peer-list updates, which
+  // arrive several times a second while scanning.
+  const stable = useMemo(
+    () => ({
+      invite: (id: string) => {
+        bleRef.current?.invite(id);
+      },
+      accept: (id: string) => {
+        bleRef.current?.accept(id);
+      },
+      unpair: (id: string) => bleRef.current?.unpair(id),
+      setMessageHandler: (fn: ((m: GossipMessage) => void) | null) => {
+        messageHandlerRef.current = fn;
+      },
+      addLogListener: (fn: (msg: string) => void) => {
+        logListenersRef.current.add(fn);
+        return () => {
+          logListenersRef.current.delete(fn);
+        };
+      },
+      sendRace: (id: string, payload: unknown) => bleRef.current?.sendRace(id, payload) ?? false,
+      addRaceListener: (fn: (deviceId: string, payload: unknown) => void) => {
+        raceListenersRef.current.add(fn);
+        return () => {
+          raceListenersRef.current.delete(fn);
+        };
+      },
+      addPairingListener: (fn: (deviceId: string, paired: boolean) => void) => {
+        pairingListenersRef.current.add(fn);
+        return () => {
+          pairingListenersRef.current.delete(fn);
+        };
+      },
+    }),
+    [],
+  );
+
   const value = useMemo<BluetoothContextValue>(
     () => ({
       available,
@@ -154,24 +212,9 @@ export function BluetoothProvider({ children }: { children: ReactNode }) {
       setGossipStatus,
       start,
       stop,
-      invite: id => {
-        bleRef.current?.invite(id);
-      },
-      accept: id => {
-        bleRef.current?.accept(id);
-      },
-      unpair: id => bleRef.current?.unpair(id),
-      setMessageHandler: fn => {
-        messageHandlerRef.current = fn;
-      },
-      addLogListener: fn => {
-        logListenersRef.current.add(fn);
-        return () => {
-          logListenersRef.current.delete(fn);
-        };
-      },
+      ...stable,
     }),
-    [available, adapterOn, ble, starting, peers, gossipStatus, start, stop],
+    [available, adapterOn, ble, starting, peers, gossipStatus, start, stop, stable],
   );
 
   return <BluetoothContext.Provider value={value}>{children}</BluetoothContext.Provider>;
