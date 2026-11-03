@@ -511,6 +511,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
           bestRII,
           npiScore,
           finishedRun.elapsedS,
+          sessionId,
         );
       }
 

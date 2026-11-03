@@ -188,6 +188,10 @@ Makes Table 15, §3.8.2, FRS-07, Fig 13 and §6.3.2–6.3.3 true.
 
 **Risk:** a migration bug can lose data, so back up the database file first (E2 copies before dropping).
 
+**Status (3 Nov) ✅ done.** Schema + migration in core `src/data/database/thesisSchema.ts` (works on any SQLite via a small interface); the app's `database.ts` keeps its function names and row shapes through column aliases. Table 15 columns and indexes are present; extra columns the app needs are kept after them (documented in the file). Migration: one transaction, row counts checked, old tables dropped only on success, full rollback on any error (tested by fault injection). Node IDs = SHA-256(device ID + salt)[0..16), pure-TS SHA-256 checked against NIST vectors; every stored device/peer ID is remapped with the same function, so phones that upgrade keep recognising each other. PRAGMAs read back in tests (WAL, NORMAL, MEMORY, −64000, foreign keys ON). `p2p_peers` filled by the Bluetooth layer (status change or every 10 s). Tests: `__tests__/data/thesisSchema.test.ts` (10 + 1 opt-in for real database copies) and `sha256.test.ts` (5), run on real SQLite (node:sqlite). Migrated both emulator databases (copies first, then on device): every row kept, IDs consistent across the two phones.
+
+Not matched (for the viva sheet): thesis Table 24 and Appendix C describe different column sets / a four-table layout; the code follows Table 15.
+
 ---
 
 ## Phase F — CI pipeline and on-device benchmarks (13 Nov)

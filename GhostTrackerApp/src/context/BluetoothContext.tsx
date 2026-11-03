@@ -25,6 +25,7 @@ import { BleManager, State } from 'react-native-ble-plx';
 import { BluetoothSync, BlePeer } from '../core/BluetoothSync';
 import type { GossipMessage } from '../../../GhostTracker/src/core/crdt';
 import { useProfile } from './ProfileContext';
+import { upsertPeer } from '../data/database';
 
 interface BluetoothContextValue {
   /** Android development build with the BLE peripheral module. */
@@ -76,6 +77,30 @@ export function BluetoothProvider({ children }: { children: ReactNode }) {
     logListenersRef.current.forEach(fn => fn(msg));
   }, []);
 
+  // p2p_peers (thesis Table 15): one row per identified peer. Scanning updates
+  // arrive several times a second, so a row is written only when the peer's
+  // status changes or at most every 10 s.
+  const peerWritesRef = useRef(new Map<string, { status: string; at: number }>());
+  const recordPeers = useCallback((list: BlePeer[]) => {
+    const now = Date.now();
+    for (const p of list) {
+      if (!p.deviceId) continue; // not identified yet (no hello)
+      const status = p.pairing ?? p.status;
+      const last = peerWritesRef.current.get(p.deviceId);
+      if (last && last.status === status && now - last.at < 10_000) continue;
+      peerWritesRef.current.set(p.deviceId, { status, at: now });
+      upsertPeer({
+        peer_id: p.deviceId,
+        mac_address: p.address,
+        rssi: p.rssi,
+        mtu_size: p.mtu,
+        status,
+        alias: p.alias,
+        last_seen: p.lastSeen,
+      }).catch(e => console.warn('[BLE] Could not record peer:', e));
+    }
+  }, []);
+
   // One BleManager for the app: watches whether Bluetooth is on
   useEffect(() => {
     if (!available) return;
@@ -120,7 +145,10 @@ export function BluetoothProvider({ children }: { children: ReactNode }) {
     setStarting(true);
     const service = new BluetoothSync(profile.deviceId, profile.name, managerRef.current);
     service.onLog = log;
-    service.onPeersChange = setPeers;
+    service.onPeersChange = list => {
+      setPeers(list);
+      recordPeers(list);
+    };
     service.onMessage = m => messageHandlerRef.current?.(m);
     service.onInvite = (deviceId, alias) => {
       Alert.alert(
@@ -155,7 +183,7 @@ export function BluetoothProvider({ children }: { children: ReactNode }) {
     } finally {
       setStarting(false);
     }
-  }, [available, profile.deviceId, profile.name, log]);
+  }, [available, profile.deviceId, profile.name, log, recordPeers]);
 
   // Keep the name peers see in sync with the profile
   useEffect(() => {

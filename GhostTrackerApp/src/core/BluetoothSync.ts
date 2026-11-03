@@ -98,6 +98,8 @@ export interface BlePeer {
   rssi: number | null;
   mtu: number | null;
   lastSeen: number;
+  /** BLE address of the peer (link or last advertisement). */
+  address: string | null;
 }
 
 interface Link {
@@ -683,6 +685,7 @@ export class BluetoothSync {
         rssi: s.rssi,
         mtu: null,
         lastSeen: s.lastSeen,
+        address: s.bleId,
       });
     }
     for (const link of this.links.values()) {
@@ -698,6 +701,7 @@ export class BluetoothSync {
         rssi: s?.rssi ?? null,
         mtu: link.mtu,
         lastSeen: s?.lastSeen ?? Date.now(),
+        address: link.id,
       });
     }
     this.onPeersChange(Array.from(peers.values()));
