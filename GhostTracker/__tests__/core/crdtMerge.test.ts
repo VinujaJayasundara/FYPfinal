@@ -142,6 +142,27 @@ describe('CRDT Merge Engine', () => {
       expect(second.hasChanges).toBe(false);
       expect(second.mergedLeaderboard.length).toBe(1);
     });
+
+    it('reports a G-Counter-only change so it is persisted (no endless gossip)', () => {
+      // Seen on two emulators: A {A:1,B:2}, B {A:2,B:1}, identical leaderboards.
+      // Before the fix the merge said "no changes", nothing was saved, and the
+      // state hashes never matched.
+      const entry = makeEntry({ id: 'entry-A', deviceId: 'device-A', updatedAt: 1000 });
+      const remotePayload: SyncPayload = {
+        deviceId: 'device-B',
+        timestamp: Date.now(),
+        crdtState: { 'device-A': 2, 'device-B': 1 },
+        leaderboardEntries: [],
+        version: 1,
+      };
+
+      const result = mergeWithRemote({ 'device-A': 1, 'device-B': 2 }, [entry], remotePayload, 'device-A');
+
+      expect(result.newEntriesCount).toBe(0);
+      expect(result.updatedEntriesCount).toBe(0);
+      expect(result.mergedCRDTState).toEqual({ 'device-A': 2, 'device-B': 2 });
+      expect(result.hasChanges).toBe(true);
+    });
   });
 
   describe('verifyConvergence', () => {

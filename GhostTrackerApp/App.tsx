@@ -51,6 +51,7 @@ import { haversineDistanceM } from './src/core/algorithms';
 // Context providers
 import { RunProvider, useRun } from './src/context/RunContext';
 import { ProfileProvider, useProfile } from './src/context/ProfileContext';
+import { BluetoothProvider } from './src/context/BluetoothContext';
 
 // Screens
 import RunScreen from './src/screens/RunScreen';
@@ -195,7 +196,9 @@ export default function App() {
   return (
     <ProfileProvider>
       <RunProvider>
-        <AppContent />
+        <BluetoothProvider>
+          <AppContent />
+        </BluetoothProvider>
       </RunProvider>
     </ProfileProvider>
   );

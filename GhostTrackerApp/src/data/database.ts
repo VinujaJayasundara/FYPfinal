@@ -74,7 +74,11 @@ export interface DBLeaderboardEntry {
 
 // ── Database Manager ──────────────────────────────────────
 
-let db: SQLite.SQLiteDatabase | null = null;
+// The connection is kept on globalThis so a development live reload of this
+// module reuses the open database instead of dropping it while screens are
+// mounted ("Database not initialized" / prepareAsync NullPointerException).
+const dbHolder = globalThis as typeof globalThis & { __ghostTrackerDb?: SQLite.SQLiteDatabase };
+let db: SQLite.SQLiteDatabase | null = dbHolder.__ghostTrackerDb ?? null;
 
 function generateId(): string {
   return 'xxxx-xxxx-xxxx'.replace(/x/g, () =>
@@ -83,7 +87,8 @@ function generateId(): string {
 }
 
 export async function initDatabase(): Promise<void> {
-  db = await SQLite.openDatabaseAsync('ghost_tracker.db');
+  db = dbHolder.__ghostTrackerDb ?? (await SQLite.openDatabaseAsync('ghost_tracker.db'));
+  dbHolder.__ghostTrackerDb = db;
 
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
@@ -367,7 +372,8 @@ export async function upsertLeaderboard(
   );
 
   if (existing) {
-    if (riiScore > existing.rii_score) {
+    // A tie (e.g. two first-on-route runs, both RII 1.0) takes the newer run
+    if (riiScore >= existing.rii_score) {
       await getDb().runAsync(
         `UPDATE leaderboard SET rii_score = ?, npi_score = ?, total_time_s = ?, user_alias = ?, updated_at = ? WHERE id = ?`,
         [riiScore, npiScore, totalTimeS, userAlias, Date.now(), existing.id],
@@ -489,12 +495,17 @@ export async function incrementCRDTCounter(deviceId: string, amount: number = 1)
   );
 }
 
+/**
+ * Persist a merged G-Counter. Each slot only ever moves up (MAX), so a merge
+ * computed from an older read can never erase an increment that landed in
+ * between (e.g. a run finishing while a gossip round is in flight).
+ */
 export async function saveCRDTState(state: Record<string, number>): Promise<void> {
-  await getDb().runAsync(`DELETE FROM crdt_state`);
   const now = Date.now();
   for (const [key, counter] of Object.entries(state)) {
     await getDb().runAsync(
-      `INSERT INTO crdt_state (key, counter, updated_at) VALUES (?, ?, ?)`,
+      `INSERT INTO crdt_state (key, counter, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET counter = MAX(counter, excluded.counter), updated_at = excluded.updated_at`,
       [key, counter, now],
     );
   }
@@ -517,10 +528,21 @@ export async function getOrCreateDeviceProfile(alias: string = 'Runner'): Promis
 }
 
 export async function updateDeviceProfileAlias(alias: string): Promise<void> {
+  const device = await getDb().getFirstAsync<{ device_id: string }>(
+    `SELECT device_id FROM device_profile LIMIT 1`,
+  );
   await getDb().runAsync(
     `UPDATE device_profile SET user_alias = ?`,
     [alias],
   );
+  // Rename our own leaderboard entries that still carry an old name, with a
+  // fresh updated_at so the LWW merge carries the new name to peers.
+  if (device) {
+    await getDb().runAsync(
+      `UPDATE leaderboard SET user_alias = ?, updated_at = ? WHERE device_id = ? AND user_alias != ?`,
+      [alias, Date.now(), device.device_id, alias],
+    );
+  }
 }
 
 // ── User Profile Repository ───────────────────────────────

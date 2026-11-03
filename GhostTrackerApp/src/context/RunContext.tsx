@@ -34,6 +34,7 @@ import {
 } from '../core/algorithms';
 import { GpsFilter } from '../../../GhostTracker/src/core/spatial/gpsFilter';
 import { RollingPaceWindow } from '../../../GhostTracker/src/core/spatial/paceCalculator';
+import { GHOST_CHECKPOINT_INTERVAL_M } from '../../../GhostTracker/src/utils/constants';
 import {
   buildGhostCheckpoints,
   GhostPacer,
@@ -427,6 +428,19 @@ export function RunProvider({ children }: { children: ReactNode }) {
         finishedRun.elevationGainM,
         finishedRun.elevationLossM,
       );
+
+      // A run with no accepted movement (e.g. start/stop without GPS fixes)
+      // is kept in history but must not become the PB/ghost or reach the
+      // leaderboard: its pace is undefined.
+      const hasValidPace =
+        finishedRun.distanceM >= GHOST_CHECKPOINT_INTERVAL_M &&
+        finishedRun.avgPaceSPerKm > 0 &&
+        isFinite(finishedRun.avgPaceSPerKm);
+      if (!hasValidPace) {
+        console.log('[DB] Run too short for PB/leaderboard:', finishedRun.distanceM.toFixed(1), 'm');
+        setDbVersion(v => v + 1);
+        return;
+      }
 
       // 5. Check if this is a new PB
       const isNewPB =

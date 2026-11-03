@@ -37,6 +37,7 @@ import {
 } from '../core/algorithms';
 import { useRun, type GPSPoint, type RunState } from '../context/RunContext';
 import { useProfile } from '../context/ProfileContext';
+import { FriendConnectButton } from '../components/FriendConnect';
 import { P2PSyncService, LivePosition, type P2PStatus } from '../core/p2pSync';
 import { calculateNPI, formatNPI, getNPIStatus } from '../core/npiEngine';
 import { ghostDistanceAtTime } from '../../../GhostTracker/src/core/fairness/ghostComparator';
@@ -280,6 +281,8 @@ function IdleView({
         <TouchableOpacity style={styles.startButton} onPress={onStart}>
           <Text style={styles.startButtonText}>START</Text>
         </TouchableOpacity>
+
+        <FriendConnectButton />
 
         <View style={styles.infoRow}>
           <View style={styles.infoPill}>

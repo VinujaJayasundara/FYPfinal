@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, TextInput, Alert, Share } from 'react-native';
 import { useProfile } from '../context/ProfileContext';
 import { useRun } from '../context/RunContext';
+import { useBluetooth } from '../context/BluetoothContext';
 import {
   getCRDTState,
   getLeaderboard,
@@ -13,7 +14,7 @@ import {
 } from '../data/database';
 import { SyncPayload, mergeSyncPayloads, toCoreEntry, toDBPayload } from '../core/sync';
 import { P2PSyncService, P2PStatus } from '../core/p2pSync';
-import { BluetoothSync, BlePeer, BLE_GOSSIP_FRAME_BYTES } from '../core/BluetoothSync';
+import { BLE_GOSSIP_FRAME_BYTES } from '../core/BluetoothSync';
 import { GossipSession, GossipEvent } from '../../../GhostTracker/src/core/crdt';
 import { GOSSIP_INTERVAL_MS } from '../../../GhostTracker/src/utils/constants';
 import { RUNNER_PROFILES } from '../data/mockData';
@@ -57,15 +58,15 @@ export function SyncTab() {
   // ── Anti-entropy gossip (automatic sync while connected) ──
   const gossipRef = useRef<GossipSession | null>(null);
   const peerAliasesRef = useRef<Record<string, string>>({});
-  const [gossipStatus, setGossipStatus] = useState('Idle');
+  const bt = useBluetooth();
+  const { gossipStatus, setGossipStatus } = bt;
 
   // ── Transport: Bluetooth (dual-role BLE) or Wi-Fi relay ──
-  const bleAvailable = BluetoothSync.isAvailable();
+  const bleAvailable = bt.available;
   const [transport, setTransport] = useState<'ble' | 'relay'>(bleAvailable ? 'ble' : 'relay');
-  const bleRef = useRef<BluetoothSync | null>(null);
-  const [bleRunning, setBleRunning] = useState(false);
-  const [bleStarting, setBleStarting] = useState(false);
-  const [blePeers, setBlePeers] = useState<BlePeer[]>([]);
+  const bleRunning = bt.running;
+  const bleStarting = bt.starting;
+  const blePeers = bt.peers;
   const [syncLogCount, setSyncLogCount] = useState(0);
 
   // Per-peer measurement of one sync: from the first hash mismatch to in-sync
@@ -230,7 +231,7 @@ export function SyncTab() {
 
   useEffect(() => {
     const relay = p2pRef.current;
-    const ble = bleRef.current;
+    const ble = bt.ble;
     if (!gossipActive || !profile.deviceId || (transport === 'relay' ? !relay : !ble)) {
       return;
     }
@@ -319,7 +320,7 @@ export function SyncTab() {
 
     gossipRef.current = session;
     session.start();
-    setGossipStatus('Running');
+    setGossipStatus(transport === 'ble' ? 'Waiting for a friend to accept' : 'Running');
     addLog(`🔁 Anti-entropy gossip started over ${transport === 'ble' ? 'Bluetooth' : 'Wi-Fi relay'} (every ${GOSSIP_INTERVAL_MS / 1000} s)`);
 
     return () => {
@@ -328,45 +329,30 @@ export function SyncTab() {
       for (const peer of Object.keys(pending)) delete pending[peer];
       setGossipStatus('Idle');
     };
-  }, [gossipActive, transport, profile.deviceId, addLog]);
+  }, [gossipActive, transport, profile.deviceId, addLog, bt.ble]);
 
   // ── Bluetooth Actions ──────────────────────────────────
 
   useEffect(() => {
     getSyncLog().then(rows => setSyncLogCount(rows.length)).catch(() => {});
-    return () => {
-      bleRef.current?.stop();
-      bleRef.current = null;
-    };
   }, []);
 
-  const startBluetooth = async () => {
-    if (!profile.deviceId) return;
-    setBleStarting(true);
-    const ble = new BluetoothSync(profile.deviceId);
-    ble.onLog = addLog;
-    ble.onPeersChange = setBlePeers;
-    ble.onMessage = message => {
-      gossipRef.current?.receive(message);
+  // Bluetooth service lives in BluetoothContext; route its gossip and logs here
+  useEffect(() => {
+    bt.setMessageHandler(message => gossipRef.current?.receive(message));
+    const removeLog = bt.addLogListener(addLog);
+    return () => {
+      bt.setMessageHandler(null);
+      removeLog();
     };
-    try {
-      await ble.start();
-      bleRef.current = ble;
-      setBleRunning(true);
-    } catch (e: any) {
-      addLog(`❌ Bluetooth: ${e?.message ?? e}`);
-      await ble.stop();
-    } finally {
-      setBleStarting(false);
-    }
+  }, [bt.setMessageHandler, bt.addLogListener, addLog]);
+
+  const startBluetooth = async () => {
+    await bt.start();
   };
 
   const stopBluetooth = async () => {
-    setBleRunning(false);
-    await bleRef.current?.stop();
-    bleRef.current = null;
-    setBlePeers([]);
-    addLog('🔌 Bluetooth sync stopped');
+    await bt.stop();
   };
 
   const switchTransport = async (next: 'ble' | 'relay') => {
@@ -556,7 +542,7 @@ export function SyncTab() {
             <View style={[styles.statusDot, { backgroundColor: bleRunning ? C.accent : bleStarting ? C.amber : C.separator }]} />
             <Text style={[styles.statusText, { color: bleRunning ? C.accent : bleStarting ? C.amber : '#8E8E93' }]}>
               {bleRunning
-                ? `Bluetooth on · ${blePeers.filter(p => p.status === 'connected').length} linked`
+                ? `Bluetooth on · ${blePeers.filter(p => p.pairing === 'paired').length} paired`
                 : bleStarting ? 'Starting Bluetooth...' : 'Bluetooth off'}
             </Text>
           </View>
@@ -575,9 +561,10 @@ export function SyncTab() {
                 <Text style={styles.hint}>Searching... keep the other phone close with the Sync tab open.</Text>
               ) : (
                 blePeers.map((peer, i) => {
-                  const name = peer.deviceId
-                    ? peerAliasesRef.current[peer.deviceId] ?? syncedPeers.find(s => s.device_id === peer.deviceId)?.user_alias ?? peer.deviceId.substring(0, 12)
-                    : `Runner ${peer.tag.substring(0, 6)}`;
+                  const name = peer.alias
+                    ?? (peer.deviceId
+                      ? peerAliasesRef.current[peer.deviceId] ?? syncedPeers.find(s => s.device_id === peer.deviceId)?.user_alias ?? peer.deviceId.substring(0, 12)
+                      : `Runner ${peer.tag.substring(0, 6)}`);
                   const color = peer.status === 'connected' ? C.accent : peer.status === 'connecting' ? C.amber : peer.status === 'lost' ? C.red : C.blue;
                   return (
                     <View key={peer.tag} style={[styles.peerRow, i > 0 && styles.peerRowBorder]}>
@@ -589,7 +576,23 @@ export function SyncTab() {
                           {peer.role ? ` · ${peer.role}` : ''}
                         </Text>
                       </View>
-                      <Text style={[styles.peerStatus, { color }]}>{peer.status}</Text>
+                      {peer.pairing === 'paired' ? (
+                        <TouchableOpacity onPress={() => peer.deviceId && bt.unpair(peer.deviceId)}>
+                          <Text style={[styles.peerStatus, { color: C.accent }]}>PAIRED ✕</Text>
+                        </TouchableOpacity>
+                      ) : peer.pairing === 'invited-out' ? (
+                        <Text style={[styles.peerStatus, { color: C.amber }]}>WAITING…</Text>
+                      ) : peer.pairing === 'invited-in' ? (
+                        <TouchableOpacity onPress={() => peer.deviceId && bt.accept(peer.deviceId)}>
+                          <Text style={[styles.peerStatus, { color: C.accent }]}>ACCEPT</Text>
+                        </TouchableOpacity>
+                      ) : peer.status === 'connected' && peer.deviceId ? (
+                        <TouchableOpacity onPress={() => bt.invite(peer.deviceId!)}>
+                          <Text style={[styles.peerStatus, { color: C.blue }]}>INVITE</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <Text style={[styles.peerStatus, { color }]}>{peer.status}</Text>
+                      )}
                     </View>
                   );
                 })

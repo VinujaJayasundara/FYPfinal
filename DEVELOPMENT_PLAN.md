@@ -111,6 +111,31 @@ Makes thesis §2.7.1, §3.7.1, FRS-08, UC-05/06, Fig 6, Fig B.1 and ST-03 true. 
 
 **Done when:** C7 works repeatably with 2 phones, codec tests pass, and the Wi-Fi relay still works.
 
+**Emulator status (3 Nov, two emulators with virtual Bluetooth — emulator numbers, not phone):** discovery, MTU 517 links, gossip convergence and run transfer all work. Fixed on the way: Bluetooth stopped on tab switch; endless gossip when only the G-Counter differed; a G-Counter increment lost to a concurrent merge save; 0 m runs becoming PB/leaderboard; renames not reaching the leaderboard; database lost on dev live reload.
+
+**C8 — Consent (added 3 Nov at the user's request).** Links still form automatically so phones exchange names (`hello`), but leaderboard gossip flows only after an **invite** is **accepted** (or both invite each other). Run screen has a **Connect with a friend** button (visible while Bluetooth is on) with a nearby-runners sheet; invitations pop up as Accept / Decline on any screen. Pairing lasts while the link is up. Files: `BluetoothSync.ts` (control messages, marker byte 0xC0 + JSON), `context/BluetoothContext.tsx`, `components/FriendConnect.tsx`. Thesis §3.7.1 should mention the invitation step.
+
+---
+
+## Phase C+ — Connected race over Bluetooth (6 – 8 Nov)
+
+Requested 3 Nov. Built after the Bluetooth merge (5 Nov) and before Phase D, so D–G move ~2 days later and use the 11 Nov and 16 Nov buffers. Builds on the C8 pairing; race messages travel on the same control channel. This feature is not in the thesis: present it as an extension at the viva.
+
+**Decisions:** the inviter picks the target distance (1 / 2 / 3 / 5 km, default 1 km) and the friend sees it before starting. "Did not finish" after **15 min per km** from that runner's own start. Connected-run colour **purple** (`#BF5AF2`) with a 🔗 symbol; on the live map **you = blue, friend = orange**.
+
+| # | Task |
+|---|---|
+| R1 | Race protocol on the control channel: `race-setup` (distance), `start`, `pos` (1 Hz: lat, lon, distance, elapsed, pace), `finish` (final time), `cancel`; per-runner status Not started / Running / Finished / DNF / Reconnecting |
+| R2 | Start alert: local notification (`expo-notifications`, needs one native rebuild) plus an in-app banner "<name> has started the run 🏃" |
+| R3 | Live race view: own and friend's pins (blue / orange), friend's stats card, "Waiting to start" until they start, ahead/behind by distance ("You're 120 m ahead") and by time at equal distance ("Jayavi is 0:15 ahead"); works whichever runner starts first |
+| R4 | Finish at the target distance; DNF timer; results screen (winner, both times, both average paces, time difference) |
+| R5 | Race results table + leaderboard section: wins/losses, best race time, connected-run count; cancelled races are not counted |
+| R6 | Visual identity: purple card/route/badges and 🔗 on run cards, history, leaderboard and notifications |
+| R7 | Edge cases: on link loss keep tracking locally, show "Reconnecting…" to the friend, resend the latest state and finish on reconnect; cancel notifies the friend and drops the race from the leaderboard |
+| R8 | Tests: race-state reducer (start order, lead/gap maths, finish, DNF, cancel) with Jest; two-emulator demo with the fake-run script on both |
+
+**Done when:** a two-emulator race with fake GPS on both runs end to end (start alert → live gap → finish → results → leaderboard), and cancel / DNF / reconnect each behave as specified.
+
 ---
 
 ## Phase D — Fairness modules and the thesis unit tests (9 – 10 Nov)

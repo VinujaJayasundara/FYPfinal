@@ -77,6 +77,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       try {
         const device = await getOrCreateDeviceProfile(DEFAULT_PROFILE.name);
         console.log('[Profile] Device:', device.deviceId);
+        // Bring our own leaderboard entries in line with the current name
+        // (entries saved before a rename keep the old alias otherwise).
+        await updateDeviceProfileAlias(device.userAlias);
 
         const dbProfile = await getUserProfile();
         if (dbProfile) {

@@ -99,7 +99,13 @@ export function mergeWithRemote(
     updatedEntriesCount,
   } = mergeLeaderboardEntries(localLeaderboard, remotePayload.leaderboardEntries);
 
-  const hasChanges = newEntriesCount > 0 || updatedEntriesCount > 0;
+  // A G-Counter-only change (the peer has seen more runs in some slot) is a
+  // change too: if it were not persisted, the state hashes would never match
+  // and gossip would re-send the same digest every round.
+  const counterChanged = Object.entries(mergedCRDTState).some(
+    ([replicaId, count]) => (localCRDTState[replicaId] ?? 0) !== count,
+  );
+  const hasChanges = newEntriesCount > 0 || updatedEntriesCount > 0 || counterChanged;
 
   log.info(
     `Merge complete. New: ${newEntriesCount}, Updated: ${updatedEntriesCount}, ` +
