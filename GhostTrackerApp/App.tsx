@@ -65,6 +65,8 @@ import { SyncTab } from './src/screens/SyncTab';
 // Components
 import UserBadge from './src/components/UserBadge';
 import FloatingRunIndicator from './src/components/FloatingRunIndicator';
+import BatteryLogger from './src/components/BatteryLogger';
+import DiagnosticsScreen from './src/screens/DiagnosticsScreen';
 
 // ── Design Tokens ─────────────────────────────────────────
 const C = {
@@ -203,6 +205,7 @@ export default function App() {
         <BluetoothProvider>
           <RaceProvider>
             <AppContent />
+            <BatteryLogger />
             <RaceBanner />
             <RaceResultsModal />
           </RaceProvider>
@@ -216,6 +219,7 @@ export default function App() {
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('run');
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const { run } = useRun();
   const { profile, updateFromSetup } = useProfile();
 
@@ -257,19 +261,25 @@ function AppContent() {
           <UserBadge onPress={() => handleTabPress('profile')} />
 
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>GHOST TRACKER</Text>
+            {/* Long-press opens the hidden Diagnostics screen (on-device benchmarks) */}
+            <Text
+              style={styles.headerTitle}
+              onLongPress={() => setDiagnosticsOpen(true)}
+              suppressHighlighting
+            >
+              GHOST TRACKER
+            </Text>
             <Text style={styles.headerSub}>RACE YOUR GHOST</Text>
           </View>
 
           <View style={styles.liveDotContainer}>
-            {run.status === 'running' ? (
-              <View style={styles.liveDotActive} />
-            ) : (
-              <View style={styles.liveDot} />
-            )}
+            {/* The header is hidden while running, so the dot is always idle here */}
+            <View style={styles.liveDot} />
           </View>
         </View>
       )}
+
+      <DiagnosticsScreen visible={diagnosticsOpen} onClose={() => setDiagnosticsOpen(false)} />
 
       {/* ── Floating Run Indicator ─────────────────────── */}
       <View style={styles.contentArea}>

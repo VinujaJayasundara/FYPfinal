@@ -205,6 +205,22 @@ Makes Table 30 (regression testing on push) true and prepares Phase G.
 | F3 | Hidden "Diagnostics" screen in the app (long-press the version label): runs 10,000 NPI inferences and 1,000 WAL inserts on the phone and shows mean/p99. This gives real *phone* numbers. | `GhostTrackerApp/src/screens/DiagnosticsScreen.tsx` |
 | F4 | Battery log: records battery % every minute during a run (`expo-battery`) into a local table, exportable as CSV | `RunContext.tsx` |
 
+**Status (3 Nov) ✅ built.**
+- F1: code is on GitHub (`VinujaJayasundara/FYPfinal`). Check in the GitHub settings that the repo is private.
+- F2: `.github/workflows/ci.yml` runs on every push in three jobs:
+  - core: `tsc` and Jest
+  - app: `tsc`, the sync tests (`GhostTrackerApp/jest.sync.config.js`) and an Android JS bundle export
+  - Python: byte-compiles the scripts, checks that the app's model JSON matches `analysis_output`, and runs the WAL benchmark, uploaded as a runner artifact (not phone numbers)
+  - The app type errors were fixed so the app job starts green: `absoluteFillObject` → `absoluteFill`, plus dead code in the App.tsx header.
+- F3: long-press **GHOST TRACKER** in the header to open Diagnostics (`src/screens/DiagnosticsScreen.tsx`). The benchmark logic lives in core `src/core/diagnostics/benchmarks.ts` and uses the same inputs as the laptop scripts.
+  - Inference: 10,000 calls, timed both as batches and per call, with the cost of reading the clock shown separately.
+  - SQLite: 1,000 single-row inserts, WAL + NORMAL compared with rollback + FULL, in a scratch database that is deleted afterwards.
+  - Every result is labelled phone or emulator and can be shared as JSON.
+  - First emulator check (emulator-5554, x86_64, **not a phone**): 5.6 µs per inference; WAL 7.5 ms mean against rollback 34.4 ms (4.6×). Phase G still needs these numbers from a real phone.
+- F4: `battery_log` table, filled by `BatteryLogger` (start of the run, every 60 s, end of the run), with the Bluetooth state recorded on each sample. Diagnostics shows drain in %/h for each run (only for runs of 10 minutes or more, and runs that were charging are flagged) and exports CSV.
+  - `expo-battery` needs a new APK; on older builds the battery log is skipped and nothing else is affected.
+- Tests: `diagnosticsBenchmarks.test.ts` (6, using real SQLite files) and `batteryLog.test.ts` (4). Core: 226 passed.
+
 ---
 
 ## Phase G — Measurements and screenshots (14 – 16 Nov) — mainly you

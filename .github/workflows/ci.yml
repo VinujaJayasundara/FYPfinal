@@ -1,0 +1,91 @@
+# Regression tests on every push (thesis Table 30).
+#
+# Jobs:
+#   core     — type check + Jest for the shared core (fairness engine, CRDT, gossip,
+#              race, SQLite schema/migration on real SQLite via node:sqlite)
+#   app      — type check of the Expo app, its sync tests, and an Android JS bundle
+#              export (proves the app compiles for Android; no APK, no phone)
+#   python   — byte-compiles the analysis scripts, checks the app's model JSON is the
+#              one the training script produced, and runs the WAL benchmark
+#              (runner numbers, not phone numbers — the artifact is labelled as such)
+
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Core — tsc + Jest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: GhostTracker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24 # node:sqlite is used by the schema tests
+          cache: npm
+          cache-dependency-path: GhostTracker/package-lock.json
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Jest
+        run: npx jest --ci
+
+  app:
+    name: App — tsc, sync tests, Android bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            GhostTracker/package-lock.json
+            GhostTrackerApp/package-lock.json
+      - name: Install core (ts-jest is shared)
+        run: npm ci
+        working-directory: GhostTracker
+      - name: Install app
+        run: npm ci
+        working-directory: GhostTrackerApp
+      - name: Type check
+        run: npx tsc --noEmit
+        working-directory: GhostTrackerApp
+      - name: Sync tests
+        run: npx jest --ci -c ../GhostTrackerApp/jest.sync.config.js
+        working-directory: GhostTracker
+      - name: Export Android JS bundle
+        run: npx expo export --platform android --output-dir dist
+        working-directory: GhostTrackerApp
+
+  python:
+    name: Python — scripts + model JSON
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: GhostTracker/scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Byte-compile all scripts
+        run: python -m py_compile *.py benchmarks/*.py
+      - name: App model JSON equals the training output
+        run: cmp analysis_output/npi_model_coefficients.json ../src/core/fairness/model/npi_model_coefficients.json
+      - name: WAL vs rollback benchmark (CI runner, not a phone)
+        run: python benchmarks/sqlite_wal.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wal-benchmark-ci-runner
+          path: GhostTracker/scripts/benchmarks_output/wal.json

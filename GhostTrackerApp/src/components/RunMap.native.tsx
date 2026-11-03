@@ -77,7 +77,7 @@ export function IdleMap({
 }) {
   return (
     <MapView
-      style={StyleSheet.absoluteFillObject}
+      style={StyleSheet.absoluteFill}
       initialRegion={region}
       mapType="standard"
       showsUserLocation={true}
@@ -113,7 +113,7 @@ export function RunningMap({
   return (
     <MapView
       ref={mapRef}
-      style={StyleSheet.absoluteFillObject}
+      style={StyleSheet.absoluteFill}
       initialRegion={initialRegion}
       mapType="standard"
       showsUserLocation={false}
@@ -192,7 +192,7 @@ export function FinishedMap({
   return (
     <MapView
       ref={mapRef}
-      style={StyleSheet.absoluteFillObject}
+      style={StyleSheet.absoluteFill}
       initialRegion={initialRegion}
       mapType="standard"
       showsUserLocation={false}

@@ -44,6 +44,7 @@ import {
 // Database persistence
 import {
   createSession,
+  linkBatteryLog,
   finalizeSession,
   insertTelemetry,
   markAsPB,
@@ -395,6 +396,9 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
       // 1. Create session
       const sessionId = await createSession(ROUTE_ID);
+      if (finishedRun.startTime) {
+        linkBatteryLog(finishedRun.startTime, sessionId).catch(e => console.warn('[Battery] link failed:', e));
+      }
 
       // 2. Insert telemetry points
       for (const pt of finishedRun.validPoints) {

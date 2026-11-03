@@ -67,7 +67,7 @@ export function IdleMap({ region }: { region: Region }) {
     showRoute: false,
   });
   return (
-    <View style={StyleSheet.absoluteFillObject}>
+    <View style={StyleSheet.absoluteFill}>
       <iframe srcDoc={html} style={{ width: '100%', height: '100%', border: 'none' } as any} title="Map" />
     </View>
   );
@@ -131,7 +131,7 @@ if(current)L.marker(current,{icon:L.divIcon({className:'',html:'<div style="posi
 </script></body></html>`;
 
   return (
-    <View style={StyleSheet.absoluteFillObject}>
+    <View style={StyleSheet.absoluteFill}>
       <iframe srcDoc={html} style={{ width: '100%', height: '100%', border: 'none' } as any} title="Live Map" />
     </View>
   );
@@ -156,7 +156,7 @@ export function FinishedMap({
     showRoute: true,
   });
   return (
-    <View style={StyleSheet.absoluteFillObject}>
+    <View style={StyleSheet.absoluteFill}>
       <iframe srcDoc={html} style={{ width: '100%', height: '100%', border: 'none' } as any} title="Route Map" />
     </View>
   );

@@ -1025,10 +1025,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   idleMapContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   idleMapOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
   },
   idleContent: {
@@ -1387,7 +1387,7 @@ const styles = StyleSheet.create({
 
   // Map
   mapWrapper: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     position: 'absolute',
     zIndex: 0,
   },

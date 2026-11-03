@@ -11,6 +11,7 @@
   "dependencies": {
     "@expo/metro-runtime": "~57.0.15",
     "expo": "^57",
+    "expo-battery": "~57.0.3",
     "expo-dev-client": "~57.0.20",
     "expo-haptics": "~57.0.2",
     "expo-location": "~57.0.16",

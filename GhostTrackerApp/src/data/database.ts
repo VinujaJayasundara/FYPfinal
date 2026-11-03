@@ -625,3 +625,32 @@ export async function getRaceSummary(): Promise<RaceSummary> {
   }
   return summary;
 }
+
+// ── Battery log (Phase F4, thesis ST-05) ─────────────────────
+
+import type { DBBatterySample } from '../../../GhostTracker/src/core/diagnostics/batteryLog';
+export {
+  summarizeBatteryLog,
+  batteryLogCsv,
+  type DBBatterySample,
+  type BatteryRunSummary,
+} from '../../../GhostTracker/src/core/diagnostics/batteryLog';
+
+export async function insertBatterySample(s: Omit<DBBatterySample, 'id' | 'session_id'>): Promise<void> {
+  await getDb().runAsync(
+    `INSERT INTO battery_log (run_started_at, recorded_at, elapsed_s, level, charging, ble_running, low_power)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [s.run_started_at, s.recorded_at, s.elapsed_s, s.level, s.charging, s.ble_running, s.low_power],
+  );
+}
+
+/** Attach a run's samples to its saved session. */
+export async function linkBatteryLog(runStartedAt: number, sessionId: string): Promise<void> {
+  await getDb().runAsync(`UPDATE battery_log SET session_id = ? WHERE run_started_at = ?`, [sessionId, runStartedAt]);
+}
+
+export async function getBatteryLog(): Promise<DBBatterySample[]> {
+  return await getDb().getAllAsync<DBBatterySample>(
+    `SELECT * FROM battery_log ORDER BY run_started_at DESC, recorded_at ASC`,
+  );
+}

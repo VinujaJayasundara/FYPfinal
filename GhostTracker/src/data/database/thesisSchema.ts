@@ -7,7 +7,7 @@
  * Each keeps the Table 15 columns and index; a few extra columns the app
  * needs (weight/height, route, PB flag, rii score, alias, …) are added after
  * them. Four support tables are unchanged in role: ghost_records,
- * leaderboard_witnesses, sync_log, race_results.
+ * leaderboard_witnesses, sync_log, race_results; battery_log (Phase F4) is new.
  *
  * Privacy (§6.3.2–6.3.3): the ID shared with peers is the node ID
  * SHA-256(local device ID + salt)[0..16). The local device ID is kept only in
@@ -180,6 +180,23 @@ export const CREATE_SCHEMA_SQL = `
     my_started_at        INTEGER,
     created_at           INTEGER NOT NULL
   );
+
+  -- battery_log: battery level sampled during runs (Phase F4, for ST-05).
+  -- run_started_at identifies the run while it is in progress; session_id is
+  -- filled in once the run is saved. No foreign key: a run that is too short
+  -- to save keeps its samples.
+  CREATE TABLE IF NOT EXISTS battery_log (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_started_at INTEGER NOT NULL,
+    session_id     TEXT,
+    recorded_at    INTEGER NOT NULL,
+    elapsed_s      REAL NOT NULL,
+    level          REAL NOT NULL CHECK (level >= 0 AND level <= 1),
+    charging       INTEGER NOT NULL DEFAULT 0,
+    ble_running    INTEGER NOT NULL DEFAULT 0,
+    low_power      INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_battery_run ON battery_log(run_started_at, recorded_at);
 `;
 
 const LEGACY_TABLES = [
