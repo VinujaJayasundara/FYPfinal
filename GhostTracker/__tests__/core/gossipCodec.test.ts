@@ -19,6 +19,7 @@ import {
   FRAME_HEADER_BYTES,
 } from '../../src/core/crdt/stateVector';
 import { LeaderboardEntry, SyncPayload } from '../../src/data/models';
+import { BLE_GOSSIP_FRAME_BYTES, BLE_MAX_FRAME_MESSAGE_BYTES } from '../../src/utils/constants';
 
 jest.mock('../../src/utils/logger', () => ({
   Logger: {
@@ -88,6 +89,25 @@ describe('Gossip codec', () => {
     extra.set(bytes);
     expect(() => decodeGossipMessage(extra)).toThrow('Trailing');
     expect(() => decodeGossipMessage(Uint8Array.from([9, 1, 65]))).toThrow('Unknown');
+  });
+
+  test('BLE frame messages stay within the thesis 384-byte limit (NFR-04)', () => {
+    // A delta big enough to need several frames
+    const many = Array.from({ length: 40 }, (_, i) => entry(A, 1_793_000_000_000 + i * 1000, `route-${i}`));
+    const payload: SyncPayload = {
+      deviceId: A,
+      timestamp: 1_793_000_100_000,
+      crdtState: { [A]: 40, [B]: 3 },
+      leaderboardEntries: many,
+      version: 1,
+    };
+    const frames = splitIntoFrames(encodeBinaryPayload(payload), 1, BLE_GOSSIP_FRAME_BYTES);
+    expect(frames.length).toBeGreaterThan(1);
+    for (const frame of frames) {
+      expect(frame.length).toBeLessThanOrEqual(BLE_GOSSIP_FRAME_BYTES);
+      const bytes = encodeGossipMessage({ kind: 'frame', from: A, to: B, frame: bytesToBase64(frame) });
+      expect(bytes.length).toBeLessThanOrEqual(BLE_MAX_FRAME_MESSAGE_BYTES);
+    }
   });
 
   test('rejects a hash of the wrong length', () => {

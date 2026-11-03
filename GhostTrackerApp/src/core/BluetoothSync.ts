@@ -61,10 +61,10 @@ const CONNECT_TIMEOUT_MS = 10_000;
 const COMPANY_ID_BYTES = [0xff, 0xff];
 
 /**
- * Gossip delta frame size for BLE. A frame message adds ≤ 85 bytes of
- * codec header, so at MTU 517 each frame travels in a single write.
+ * Gossip delta frame size for BLE (core constant): each serialized frame
+ * message stays ≤ 384 bytes (thesis NFR-04), one write at MTU ≥ 387.
  */
-export const BLE_GOSSIP_FRAME_BYTES = 420;
+export { BLE_GOSSIP_FRAME_BYTES } from '../../../GhostTracker/src/utils/constants';
 
 export type BleLinkRole = 'central' | 'peripheral';
 export type BlePeerStatus = 'found' | 'connecting' | 'connected' | 'lost';

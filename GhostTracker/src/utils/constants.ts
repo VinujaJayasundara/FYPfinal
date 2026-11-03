@@ -44,6 +44,14 @@ export const BLE_SYNC_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
 /** Maximum BLE payload size in bytes (conservative MTU) */
 export const BLE_MAX_PAYLOAD_BYTES = 512;
+/** Thesis NFR-04 / §4.4.4: a serialized gossip frame message is ≤ 384 bytes. */
+export const BLE_MAX_FRAME_MESSAGE_BYTES = 384;
+/**
+ * Delta frame size used over BLE. A frame message adds 1 + (1 + |from|) +
+ * (1 + |to|) bytes, i.e. 61 bytes for two 29-character device IDs, so a
+ * 320-byte frame keeps the whole message ≤ 384 bytes.
+ */
+export const BLE_GOSSIP_FRAME_BYTES = 320;
 
 /** Anti-entropy gossip interval between connected peers */
 export const GOSSIP_INTERVAL_MS = 2500;
