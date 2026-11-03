@@ -467,6 +467,16 @@ export async function getUserProfile(): Promise<DBUserProfile | null> {
   return row || null;
 }
 
+/** Profile picture (local file URI), or null. Never shared with peers. */
+export async function getAvatarUri(): Promise<string | null> {
+  const row = await getDb().getFirstAsync<{ avatar_uri: string | null }>(`SELECT avatar_uri FROM users LIMIT 1`);
+  return row?.avatar_uri ?? null;
+}
+
+export async function setAvatarUri(uri: string | null): Promise<void> {
+  await getDb().runAsync(`UPDATE users SET avatar_uri = ?`, [uri]);
+}
+
 export async function updateCalibration(profileId: string, runs: number, baselinePace: number | null): Promise<void> {
   const calibrated = runs >= 5 && baselinePace !== null ? 1 : 0;
   await getDb().runAsync(

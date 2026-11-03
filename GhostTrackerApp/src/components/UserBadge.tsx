@@ -9,6 +9,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useProfile } from '../context/ProfileContext';
+import Avatar from './Avatar';
 
 // ── Design Tokens ─────────────────────────────────────────
 const C = {
@@ -17,17 +18,6 @@ const C = {
   textPrimary: '#FFFFFF',
   textSecondary: '#8E8E93',
 };
-
-/**
- * Extract initials from a name (first letter of first two words).
- */
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map((w) => w.charAt(0).toUpperCase())
-    .join('');
-}
 
 interface UserBadgeProps {
   /** Called when the user taps the badge — navigates to Profile */
@@ -45,9 +35,7 @@ export default function UserBadge({ onPress }: UserBadgeProps) {
     >
       {/* Avatar ring with initials */}
       <View style={styles.avatarRing}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{getInitials(profile.name)}</Text>
-        </View>
+        <Avatar name={profile.name} uri={profile.avatarUri} size={28} />
       </View>
       {/* Name + subtitle */}
       <View style={styles.textContainer}>

@@ -26,7 +26,16 @@ export interface SqlDb {
   all<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
 }
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
+
+/**
+ * Columns added after a table was first shipped: [table, column, definition].
+ * CREATE TABLE IF NOT EXISTS does not add them to an existing table, so they
+ * are added on start when missing (v3: profile picture).
+ */
+const ADDED_COLUMNS: [string, string, string][] = [
+  ['users', 'avatar_uri', 'TEXT'], // local file path of the profile picture; never shared
+];
 
 /** Thesis §3.8.2 PRAGMAs (foreign keys are also enforced). */
 export const PRAGMAS_SQL = `
@@ -53,7 +62,8 @@ export const CREATE_SCHEMA_SQL = `
     height_cm        REAL,
     calibration_runs INTEGER NOT NULL DEFAULT 0,
     baseline_pace    REAL,
-    is_calibrated    INTEGER NOT NULL DEFAULT 0
+    is_calibrated    INTEGER NOT NULL DEFAULT 0,
+    avatar_uri       TEXT                        -- profile picture (local file), never shared
   );
 
   -- 2. sessions: workout summaries (Table 15)
@@ -231,6 +241,15 @@ async function count(db: SqlDb, sql: string): Promise<number> {
   return Number(rows[0]?.n ?? 0);
 }
 
+async function addMissingColumns(db: SqlDb): Promise<void> {
+  for (const [table, column, definition] of ADDED_COLUMNS) {
+    const cols = await db.all<{ name: string }>(`PRAGMA table_info(${table})`);
+    if (cols.length > 0 && !cols.some(c => c.name === column)) {
+      await db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+    }
+  }
+}
+
 async function userVersion(db: SqlDb): Promise<number> {
   const rows = await db.all<{ user_version: number }>(`PRAGMA user_version`);
   return Number(rows[0]?.user_version ?? 0);
@@ -246,6 +265,7 @@ export async function migrateDatabase(db: SqlDb, now: number = Date.now()): Prom
   const report: MigrationReport = { migrated: false, fromVersion, counts: {}, orphanGpsPointsDropped: 0, idsRemapped: 0 };
   if (fromVersion >= SCHEMA_VERSION) {
     await db.exec(CREATE_SCHEMA_SQL); // no-op unless a support table is new
+    await addMissingColumns(db);
     return report;
   }
 
@@ -268,6 +288,7 @@ export async function migrateDatabase(db: SqlDb, now: number = Date.now()): Prom
     } else {
       await db.exec(CREATE_SCHEMA_SQL);
     }
+    await addMissingColumns(db);
     await db.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
     await db.exec('COMMIT;');
   } catch (e) {

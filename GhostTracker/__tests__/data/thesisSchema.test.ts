@@ -126,6 +126,26 @@ describe('fresh install', () => {
   });
 });
 
+describe('v2 → v3 (profile picture column)', () => {
+  it('adds users.avatar_uri to an existing v2 database and keeps the data', async () => {
+    const { db, raw } = open();
+    await migrateDatabase(db);
+    // Make it look like a v2 database: users without avatar_uri
+    raw.exec(`PRAGMA foreign_keys = OFF;
+      CREATE TABLE users_v2 AS SELECT user_id, age, bmi, gender, created_at, node_id, alias, weight_kg, height_cm,
+        calibration_runs, baseline_pace, is_calibrated FROM users;
+      DROP TABLE users; ALTER TABLE users_v2 RENAME TO users; PRAGMA user_version = 2;`);
+    raw.prepare(`INSERT INTO users (user_id, created_at, node_id, alias, calibration_runs, is_calibrated) VALUES (?, ?, ?, ?, 0, 0)`)
+      .run('local-1', 1, 'abcdef0123456789', 'Jayavi');
+    const report = await migrateDatabase(db);
+    expect(report.fromVersion).toBe(2);
+    const cols = raw.prepare(`PRAGMA table_info(users)`).all().map((c: any) => c.name);
+    expect(cols).toContain('avatar_uri');
+    expect(one(raw, 'SELECT alias FROM users').alias).toBe('Jayavi');
+    expect(one(raw, 'PRAGMA user_version').user_version).toBe(3);
+  });
+});
+
 describe('prototype → thesis migration', () => {
   it('copies every row and drops the old tables', async () => {
     const { db, raw } = open();

@@ -21,7 +21,10 @@ import {
   getUserProfile,
   getOrCreateDeviceProfile,
   updateDeviceProfileAlias,
+  getAvatarUri,
+  setAvatarUri,
 } from '../data/database';
+import { deleteAvatarFile } from '../core/avatar';
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -33,12 +36,16 @@ export interface UserProfile {
   gender: 'M' | 'F';
   bmi: number;
   deviceId: string;
+  /** Profile picture on this phone (null = show initials). */
+  avatarUri: string | null;
 }
 
 interface ProfileContextValue {
   profile: UserProfile;
   setProfile: (updates: Partial<UserProfile>) => void;
   updateFromSetup: (name: string, age: number, weightKg: number, heightCm: number, gender: 'M' | 'F') => void;
+  /** Store a new picture (already copied into app storage) or remove it (null). */
+  setAvatar: (uri: string | null) => Promise<void>;
 }
 
 // ── Default profile ───────────────────────────────────────
@@ -51,6 +58,7 @@ const DEFAULT_PROFILE: UserProfile = {
   gender: 'M',
   bmi: calculateBMI(68, 175),
   deviceId: '',
+  avatarUri: null,
 };
 
 // ── Context ───────────────────────────────────────────────
@@ -81,6 +89,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         // (entries saved before a rename keep the old alias otherwise).
         await updateDeviceProfileAlias(device.userAlias);
 
+        const avatarUri = await getAvatarUri().catch(() => null);
         const dbProfile = await getUserProfile();
         if (dbProfile) {
           _setProfile({
@@ -91,6 +100,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             gender: dbProfile.gender as 'M' | 'F',
             bmi: dbProfile.bmi,
             deviceId: device.deviceId,
+            avatarUri,
           });
           console.log('[Profile] Loaded from DB');
         } else {
@@ -98,6 +108,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             ...prev,
             name: device.userAlias,
             deviceId: device.deviceId,
+            avatarUri,
           }));
         }
       } catch (e) {
@@ -136,8 +147,17 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const avatarRef = React.useRef<string | null>(null);
+  avatarRef.current = profile.avatarUri;
+  const setAvatar = useCallback(async (uri: string | null) => {
+    const previous = avatarRef.current;
+    await setAvatarUri(uri);
+    _setProfile(prev => ({ ...prev, avatarUri: uri }));
+    if (previous && previous !== uri) deleteAvatarFile(previous);
+  }, []);
+
   return (
-    <ProfileContext.Provider value={{ profile, setProfile, updateFromSetup }}>
+    <ProfileContext.Provider value={{ profile, setProfile, updateFromSetup, setAvatar }}>
       {children}
     </ProfileContext.Provider>
   );

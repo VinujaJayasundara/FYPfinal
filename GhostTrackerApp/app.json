@@ -48,6 +48,14 @@
         }
       ],
       "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ghost-Tracker uses your photos to set a profile picture. The picture stays on this phone.",
+          "cameraPermission": "Ghost-Tracker uses the camera to take a profile picture. The picture stays on this phone.",
+          "microphonePermission": false
+        }
+      ],
       "expo-status-bar",
       [
         "expo-notifications",
