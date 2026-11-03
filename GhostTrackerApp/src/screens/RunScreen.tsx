@@ -51,6 +51,7 @@ import {
   animateMapToRegion,
   fitMapToCoordinates,
 } from '../components/RunMap';
+import OfflineMapButton from '../components/OfflineMapButton';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAP_HEIGHT = SCREEN_HEIGHT * 0.45;
@@ -256,6 +257,9 @@ function IdleView({
         <IdleMap region={region} />
         <View style={styles.idleMapOverlay} />
       </View>
+
+      {/* Offline map — Top Left */}
+      <OfflineMapButton location={initialLocation} />
 
       {/* ⚡ SYNC Button — Top Right */}
       <TouchableOpacity

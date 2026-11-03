@@ -223,6 +223,18 @@ Makes Table 30 (regression testing on push) true and prepares Phase G.
 
 ---
 
+## Phase F+ — Profile and maps (3 Nov)
+
+- **Profile:** the details form now has labelled fields with units, inline range errors, Next moves between fields, Male/Female is a two-button switch, and Save is offered only when something changed. A profile picture can be added from the gallery or the camera (expo-image-picker, cropped square). It is stored in app documents (`users.avatar_uri`, schema v3), shown in the header badge, and never sent over Bluetooth.
+- **Maps:** Google Maps (react-native-maps) is replaced by **MapLibre + OpenFreeMap**, which needs no API key, account or card. The old map was blank even on a real phone because the key was only a placeholder.
+  - "Offline map" chip on the Run screen: downloads about 10 × 10 km around the runner (zoom 10–14 vector tiles; MapLibre draws closer zooms from them), so the map works in airplane mode.
+  - Builds without MapLibre show a placeholder instead of crashing (`RunMap.native.tsx` checks for the native module).
+  - Attribution: © OpenStreetMap contributors, via the attribution button on the map.
+- **Needs a new build** (native modules: MapLibre, image picker, battery). The build needs about 10 GB free on C:.
+- **For the viva sheet:** if the thesis names Google Maps / react-native-maps, the implementation now uses MapLibre with OpenFreeMap tiles. Reasons: offline-first, no location requests to Google, no billing.
+
+---
+
 ## Phase G — Measurements and screenshots (14 – 16 Nov) — mainly you
 
 | # | Measurement | How | Replaces |

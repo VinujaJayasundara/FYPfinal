@@ -26,11 +26,6 @@
         "backgroundColor": "#0a0e1a"
       },
       "predictiveBackGestureEnabled": false,
-      "config": {
-        "googleMaps": {
-          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
-        }
-      },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -69,7 +64,8 @@
           "isBackgroundEnabled": false,
           "neverForLocation": true
         }
-      ]
+      ],
+      "@maplibre/maplibre-react-native"
     ]
   }
 }
