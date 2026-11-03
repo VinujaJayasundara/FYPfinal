@@ -276,13 +276,22 @@ function AppContent() {
           <RunScreen />
         </View>
         
-        {activeTab !== 'run' && (
+        {/* Sync stays mounted (hidden) so the Bluetooth link and gossip
+            session survive tab switches; unmounting it would stop BLE. */}
+        <ScrollView
+          style={[styles.content, { display: activeTab === 'sync' ? 'flex' : 'none' }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <SyncTab />
+          <View style={{ height: 100 }} />
+        </ScrollView>
+
+        {activeTab !== 'run' && activeTab !== 'sync' && (
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {activeTab === 'dashboard' && <DashboardTab />}
             {activeTab === 'sessions' && <SessionsTab />}
             {activeTab === 'ghost' && <GhostTab />}
             {activeTab === 'leaderboard' && <LeaderboardTab />}
-            {activeTab === 'sync' && <SyncTab />}
             {activeTab === 'profile' && (
               <ProfileSetupScreen
                 onSave={(name, age, weightKg, heightCm, gender) => {
