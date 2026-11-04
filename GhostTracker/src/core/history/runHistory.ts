@@ -83,3 +83,46 @@ export function numberRuns<T extends { startTime: number; paceSPerKm: number | n
     .sort((a, b) => a.startTime - b.startTime)
     .map(r => ({ ...r, runNo: r.paceSPerKm && r.paceSPerKm > 0 && isFinite(r.paceSPerKm) ? ++n : null }));
 }
+
+// ── Home page summaries ─────────────────────────────────────
+
+/** Monday 00:00 (local time) of the week containing `now`. */
+export function weekStart(now: number): number {
+  const d = new Date(now);
+  const day = (d.getDay() + 6) % 7; // Monday = 0
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - day);
+  return d.getTime();
+}
+
+export interface WeekStats {
+  runs: number;
+  distanceM: number;
+  /** Fastest average pace this week among valid runs (s/km), or null. */
+  bestPace: number | null;
+}
+
+export function weekStats(runs: RunHistoryItem[], now: number): WeekStats {
+  const from = weekStart(now);
+  const week = runs.filter(r => r.startTime >= from && r.startTime <= now);
+  const paces = week.map(r => r.paceSPerKm).filter((p): p is number => p !== null && p > 0 && isFinite(p));
+  return {
+    runs: week.length,
+    distanceM: week.reduce((a, r) => a + r.distanceM, 0),
+    bestPace: paces.length ? Math.min(...paces) : null,
+  };
+}
+
+/** NPI of the last `n` scored runs (5th valid run onwards), oldest first. */
+export function npiTrend(runs: RunHistoryItem[], n = 10, calibrationRuns = 5): { startTime: number; npi: number }[] {
+  return runs
+    .filter(r => r.runNo !== null && r.runNo >= calibrationRuns && r.npi !== null && isFinite(r.npi))
+    .sort((a, b) => a.startTime - b.startTime)
+    .slice(-n)
+    .map(r => ({ startTime: r.startTime, npi: r.npi as number }));
+}
+
+/** Newest run in the history, or null. */
+export function lastRun(runs: RunHistoryItem[]): RunHistoryItem | null {
+  return runs.reduce<RunHistoryItem | null>((best, r) => (best === null || r.startTime > best.startTime ? r : best), null);
+}

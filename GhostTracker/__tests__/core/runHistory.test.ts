@@ -48,3 +48,33 @@ describe('peersInHistory / numberRuns', () => {
     expect(n.map(r => [r.startTime, r.runNo])).toEqual([[1, 1], [2, null], [3, 2]]);
   });
 });
+
+import { weekStart, weekStats, npiTrend, lastRun } from '../../src/core/history/runHistory';
+
+describe('home summaries', () => {
+  // Wednesday 4 Nov 2026, 15:00 local
+  const wed = new Date(2026, 10, 4, 15, 0, 0).getTime();
+  const at = (y: number, m: number, d: number, h = 9) => new Date(y, m, d, h).getTime();
+  const r = (start: number, dist: number, pace: number | null, runNo: number | null, npi: number | null): RunHistoryItem => ({
+    sessionId: String(start), startTime: start, durationS: 600, distanceM: dist, paceSPerKm: pace,
+    npi, rii: null, isPB: false, peers: [], raceOutcome: null, runNo,
+  });
+
+  it('week starts on Monday 00:00 local', () => {
+    const ws = new Date(weekStart(wed));
+    expect([ws.getDay(), ws.getHours(), ws.getDate()]).toEqual([1, 0, 2]);
+  });
+
+  it('this week: count, distance, best pace', () => {
+    const runs = [r(at(2026, 10, 1), 5000, 280, 1, null), r(at(2026, 10, 2), 1000, 300, 2, null), r(at(2026, 10, 4), 2000, 250, 3, null), r(at(2026, 10, 3), 5, null, null, null)];
+    expect(weekStats(runs, wed)).toEqual({ runs: 3, distanceM: 3005, bestPace: 250 });
+  });
+
+  it('NPI trend: only scored runs (5th onwards), oldest first, last n', () => {
+    const runs = [1, 2, 3, 4, 5, 6, 7].map(i => r(at(2026, 9, i), 1000, 300, i, i / 10));
+    expect(npiTrend(runs, 2).map(x => x.npi)).toEqual([0.6, 0.7]);
+    expect(npiTrend(runs).map(x => x.npi)).toEqual([0.5, 0.6, 0.7]);
+    expect(lastRun(runs)?.runNo).toBe(7);
+    expect(lastRun([])).toBeNull();
+  });
+});

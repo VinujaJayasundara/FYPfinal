@@ -94,7 +94,7 @@ const RANGE_OPTIONS: { key: DateRangeFilter; label: string }[] = [
 
 // ── Run detail ─────────────────────────────────────────────
 
-function RunDetail({ run, baselinePace, onClose }: { run: RunHistoryItem; baselinePace: number | null; onClose: () => void }) {
+export function RunDetail({ run, baselinePace, onClose }: { run: RunHistoryItem; baselinePace: number | null; onClose: () => void }) {
   const mapRef = useRef<any>(null);
   const [route, setRoute] = useState<{ latitude: number; longitude: number }[] | null>(null);
   const color = runColor(isPeerRun(run));

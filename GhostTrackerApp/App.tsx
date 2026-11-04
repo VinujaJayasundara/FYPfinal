@@ -61,6 +61,7 @@ import BatteryLogger from './src/components/BatteryLogger';
 import RunPeerTracker from './src/components/RunPeerTracker';
 import DiagnosticsScreen from './src/screens/DiagnosticsScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
+import HomeScreen from './src/screens/HomeScreen';
 
 // ── Design Tokens ─────────────────────────────────────────
 const C = {
@@ -315,7 +316,7 @@ function AppContent() {
 
         {activeTab !== 'run' && activeTab !== 'sync' && (
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {activeTab === 'dashboard' && <DashboardTab />}
+            {activeTab === 'dashboard' && <HomeScreen onStartRun={() => setActiveTab('run')} />}
             {activeTab === 'sessions' && <HistoryScreen />}
             {activeTab === 'leaderboard' && <LeaderboardTab />}
             {activeTab === 'profile' && (
@@ -359,162 +360,6 @@ function AppContent() {
             </TouchableOpacity>
           );
         })}
-      </View>
-    </View>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
-// DASHBOARD TAB — Real SQLite data + empty state
-// ═══════════════════════════════════════════════════════════
-
-function DashboardTab() {
-  const { profile } = useProfile();
-  const { dbVersion, calibration } = useRun();
-  const [sessionCount, setSessionCount] = useState(0);
-  const [totalDist, setTotalDist] = useState(0);
-  const [sessions, setSessions] = useState<DBSession[]>([]);
-  const [pbPace, setPbPace] = useState<number | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const count = await getSessionCount();
-        const dist = await getTotalDistance();
-        const allSess = await getAllSessions();
-        const pb = await getPBSession('default-route');
-        setSessionCount(count);
-        setTotalDist(dist);
-        setSessions(allSess.filter(s => s.ended_at !== null));
-        setPbPace(pb?.avg_pace_s_per_km ?? null);
-      } catch (e) {
-        console.error('[Dashboard] Load failed:', e);
-      }
-    })();
-  }, [dbVersion]);
-
-  // Compute stats from real data
-  const validSessions = sessions.filter(s => s.avg_pace_s_per_km && s.avg_pace_s_per_km > 0);
-  const latestPace = validSessions.length > 0 ? validSessions[0].avg_pace_s_per_km! : 0;
-  const firstPace = validSessions.length > 0 ? validSessions[validSessions.length - 1].avg_pace_s_per_km! : 0;
-  const improvement = firstPace > 0 && latestPace > 0 && latestPace < firstPace
-    ? ((1 - latestPace / firstPace) * 100)
-    : 0;
-  const rii = pbPace && latestPace > 0 ? calculateRII(pbPace, latestPace) : 0;
-  const status = getRIIStatus(rii);
-
-  // Greeting based on time
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
-
-  return (
-    <View>
-      <Text style={styles.greeting}>{greeting}, {profile.name}</Text>
-      <Text style={styles.greetingSub}>Your improvement journey at a glance</Text>
-
-      {/* RII Hero */}
-      <View style={styles.dualScoreHero}>
-        <View style={styles.dualScoreItem}>
-          {calibration.calibrated ? (
-            <>
-              <View style={[styles.riiRing, { width: 110, height: 110, borderRadius: 55 }]}>
-                <Text style={[styles.riiHeroScore, { color: status.color, fontSize: 36 }]}>
-                  {rii > 0 ? rii.toFixed(2) : '—'}
-                </Text>
-              </View>
-              <Text style={styles.dualScoreLabel}>RII</Text>
-              <Text style={[styles.dualScoreStatus, { color: status.color }]}>{status.label}</Text>
-              <Text style={styles.dualScoreDesc}>vs your Ghost</Text>
-            </>
-          ) : (
-            <>
-              {/* First 5 runs: baseline progress instead of scores */}
-              <View style={[styles.riiRing, { width: 110, height: 110, borderRadius: 55, borderColor: C.amber + '60' }]}>
-                <Text style={[styles.riiHeroScore, { color: C.amber, fontSize: 32 }]}>
-                  {calibration.runs}/{calibration.needed}
-                </Text>
-              </View>
-              <Text style={styles.dualScoreLabel}>BASELINE</Text>
-              <Text style={[styles.dualScoreStatus, { color: C.amber }]}>
-                {calibration.needed - calibration.runs} run{calibration.needed - calibration.runs === 1 ? '' : 's'} to go
-              </Text>
-              <Text style={styles.dualScoreDesc}>scores appear after run {calibration.needed}</Text>
-            </>
-          )}
-        </View>
-        <View style={styles.dualScoreItem}>
-          <View style={[styles.riiRing, { width: 110, height: 110, borderRadius: 55, borderColor: '#BF5AF240' }]}>
-            <Text style={[styles.riiHeroScore, { color: C.blue, fontSize: 36 }]}>
-              {sessionCount}
-            </Text>
-          </View>
-          <Text style={styles.dualScoreLabel}>RUNS</Text>
-          <Text style={[styles.dualScoreStatus, { color: C.blue }]}>Completed</Text>
-          <Text style={styles.dualScoreDesc}>total sessions</Text>
-        </View>
-      </View>
-
-      {/* Stats Row */}
-      <View style={styles.statsGrid}>
-        <StatCard label="SESSIONS" value={String(sessionCount)} accent={C.blue} />
-        <StatCard label="IMPROVED" value={improvement > 0 ? `${improvement.toFixed(0)}%` : '—'} accent={C.accent} />
-        <StatCard label="PB PACE" value={pbPace ? formatPace(pbPace) : '—'} accent={C.teal} />
-        <StatCard label="DISTANCE" value={totalDist > 0 ? `${(totalDist / 1000).toFixed(1)}k` : '0'} accent={C.amber} />
-      </View>
-
-      {/* Pace Trend from real sessions */}
-      {validSessions.length > 0 ? (
-        <View style={styles.card}>
-          <Text style={styles.sectionLabel}>PACE TREND</Text>
-          <View style={styles.trendChart}>
-            {[...validSessions].reverse().slice(-8).map((s, i) => {
-              const paces = validSessions.map(ss => ss.avg_pace_s_per_km!);
-              const maxPace = Math.max(...paces) + 30;
-              const minPace = Math.min(...paces) - 30;
-              const range = maxPace - minPace || 1;
-              const height = ((maxPace - s.avg_pace_s_per_km!) / range) * 120;
-              const date = new Date(s.started_at);
-              return (
-                <View key={i} style={styles.trendBarWrapper}>
-                  <View
-                    style={[
-                      styles.trendBar,
-                      {
-                        height: Math.max(20, height),
-                        backgroundColor: s.is_pb ? C.accent : C.blue,
-                        opacity: s.is_pb ? 1 : 0.6,
-                      },
-                    ]}
-                  />
-                  <Text style={styles.trendLabel}>{formatPace(s.avg_pace_s_per_km!)}</Text>
-                  <Text style={styles.trendDate}>{date.getDate()}/{date.getMonth() + 1}</Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-      ) : (
-        <View style={styles.card}>
-          <Text style={styles.sectionLabel}>PACE TREND</Text>
-          <Text style={styles.cardLocation}>Complete your first run to see pace trends here</Text>
-        </View>
-      )}
-
-      {/* How It Works */}
-      <View style={styles.card}>
-        <Text style={styles.sectionLabel}>DUAL METRIC SYSTEM</Text>
-        {[
-          { title: 'RII — Self Improvement', desc: 'PB_pace / Current_pace — are you beating your Ghost?', accent: C.accent },
-          { title: 'NPI — Cross-Person Fair', desc: 'Z-score vs expected pace for your age, BMI, altitude', accent: '#BF5AF2' },
-          { title: 'Privacy First', desc: 'All data stays on your device — zero cloud dependency', accent: C.blue },
-        ].map((item, i) => (
-          <View key={i} style={[styles.featureItem, { borderLeftColor: item.accent }]}>
-            <View>
-              <Text style={styles.featureTitle}>{item.title}</Text>
-              <Text style={styles.featureDesc}>{item.desc}</Text>
-            </View>
-          </View>
-        ))}
       </View>
     </View>
   );
