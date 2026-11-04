@@ -764,15 +764,33 @@ export async function getRunHistory(): Promise<RunHistoryItem[]> {
   const peers = await db.getAllAsync<{ run_started_at: number; peer_id: string; peer_alias: string; kind: 'connected' | 'race' }>(
     `SELECT run_started_at, peer_id, peer_alias, kind FROM run_peers`,
   );
-  const races = await db.getAllAsync<{ my_started_at: number | null; friend_id: string; friend_alias: string; outcome: string }>(
-    `SELECT my_started_at, friend_id, friend_alias, outcome FROM race_results WHERE my_started_at IS NOT NULL`,
+  const races = await db.getAllAsync<{
+    my_started_at: number | null;
+    my_time_s: number | null;
+    friend_id: string;
+    friend_alias: string;
+    outcome: string;
+  }>(
+    `SELECT my_started_at, my_time_s, friend_id, friend_alias, outcome FROM race_results WHERE my_started_at IS NOT NULL`,
   );
+  // A session belongs to a race when it started with it, or (runs saved
+  // before sessions stored their real start) was saved during / just after it.
+  const raceFor = (start: number) =>
+    races
+      .filter(r => {
+        if (r.my_started_at === null) return false;
+        // finished: its time + 3 min; did not finish (no time): saved within 2 min
+        const lastMs = r.my_time_s !== null ? (r.my_time_s + 180) * 1000 : 120_000;
+        return start >= r.my_started_at - 5000 && start <= r.my_started_at + lastMs;
+      })
+      // the most recent race that started before this session
+      .sort((a, b) => (b.my_started_at ?? 0) - (a.my_started_at ?? 0))[0];
 
   const items = sessions.map(s => {
     const runPeers: RunPeer[] = peers
       .filter(p => p.run_started_at === s.start_time)
       .map(p => ({ peerId: p.peer_id, alias: p.peer_alias, kind: p.kind }));
-    const race = races.find(r => r.my_started_at !== null && Math.abs(r.my_started_at - s.start_time) < 5000);
+    const race = raceFor(s.start_time);
     if (race && !runPeers.some(p => p.peerId === race.friend_id)) {
       runPeers.push({ peerId: race.friend_id, alias: race.friend_alias, kind: 'race' });
     }

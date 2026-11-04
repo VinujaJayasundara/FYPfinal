@@ -259,6 +259,20 @@ Seven bugs fixed (commit bb19a3e):
 
 ---
 
+## UX round (4 Nov): 5-run baseline, history, demo removal
+
+- **5-run baseline:** scores (NPI, RII, vs-baseline) are shown from the 5th valid run; runs 1–4 show "Baseline: N of 5". The thesis formulas are unchanged (NPI against the model's expected pace; RII against PB). The extra personal number is pace vs the baseline (mean pace of the first 5 runs). Your own leaderboard entry is shared only once calibrated.
+- **History:** every run, newest first, with a route map (start/finish markers). Peer runs (paired friend or connected race) are shown in purple, solo runs in green, everywhere. Filters: all / solo / with a friend, date range, one friend.
+- **Board:** shows me plus real friends I have synced with (in p2p_peers), kept when they are out of range. Demo leaderboard removed; old demo entries are deleted from the database on start.
+- **Demo data:** removed from the UI; the Sync demo buttons and the old Wi-Fi relay chip are behind dev-only flags (off).
+- **Sync tab hidden:** it stays mounted for the gossip session; the sync log opens from Diagnostics (long-press the title).
+- **Running screen:** the map is always visible (split layout), with large TIME / KM / PACE and a compact race strip.
+- **For the viva sheet:**
+  1. The thesis Table A.1 lists a fixed 6-tab bar including BLE Sync. The app has 5 tabs; connecting is done from the Run screen ("Connect with a friend") and the sync log is a hidden debug screen.
+  2. Scores are shown after 5 calibration runs (a UI rule; the formulas are as in the thesis).
+
+---
+
 ## Phase G — Measurements and screenshots (14 – 16 Nov) — mainly you
 
 | # | Measurement | How | Replaces |

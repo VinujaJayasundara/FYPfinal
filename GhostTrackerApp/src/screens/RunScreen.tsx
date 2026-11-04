@@ -777,6 +777,7 @@ function FinishedView({
         rii={rii > 0 ? rii : null}
         pbPace={pbPace}
         baselinePace={baselinePace}
+        npiMissingHint="save your profile"
       />
 
       {/* GPS Stats */}

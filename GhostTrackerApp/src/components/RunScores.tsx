@@ -32,8 +32,10 @@ export interface RunScoresProps {
   pace: number | null;
   npi: number | null;
   rii: number | null;
-  /** PB the RII was measured against (s/km). */
+  /** PB the RII was measured against (s/km); undefined = not known here (history). */
   pbPace?: number | null;
+  /** Why NPI may be missing: the profile is not saved (live) vs not stored (old run). */
+  npiMissingHint?: string;
   baselinePace: number | null;
   compact?: boolean;
 }
@@ -65,7 +67,16 @@ export function BaselineProgress({ recorded, compact }: { recorded: number; comp
   );
 }
 
-export default function RunScores({ runNo, pace, npi, rii, pbPace, baselinePace, compact }: RunScoresProps) {
+export default function RunScores({
+  runNo,
+  pace,
+  npi,
+  rii,
+  pbPace,
+  baselinePace,
+  compact,
+  npiMissingHint = 'not recorded',
+}: RunScoresProps) {
   if (runNo === null) {
     return (
       <View style={styles.card}>
@@ -96,13 +107,15 @@ export default function RunScores({ runNo, pace, npi, rii, pbPace, baselinePace,
           <Text style={[styles.big, { color: npiStatus?.color ?? C.dim }]}>{npi !== null ? formatNPI(npi) : '—'}</Text>
           <Text style={styles.cellLabel}>NPI</Text>
           <Text style={[styles.cellSub, { color: npiStatus?.color ?? C.faint }]}>
-            {npiStatus ? `${npiStatus.label}` : 'Save your profile'}
+            {npiStatus ? `${npiStatus.label}` : npiMissingHint}
           </Text>
         </View>
         <View style={styles.cell}>
           <Text style={[styles.big, { color: riiStatus?.color ?? C.dim }]}>{rii !== null && rii > 0 ? rii.toFixed(3) : '—'}</Text>
           <Text style={styles.cellLabel}>RII</Text>
-          <Text style={styles.cellSub}>{pbPace ? `vs PB ${formatPaceShort(pbPace)}/km` : 'first run on route'}</Text>
+          <Text style={styles.cellSub}>
+            {pbPace ? `vs PB ${formatPaceShort(pbPace)}/km` : pbPace === undefined ? 'vs PB at the time' : 'first run on route'}
+          </Text>
         </View>
       </View>
       <View style={styles.baseRow}>
