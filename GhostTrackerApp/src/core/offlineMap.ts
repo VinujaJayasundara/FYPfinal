@@ -22,7 +22,7 @@ export const OFFLINE_MAX_ZOOM = 14;
 
 const PACK_NAME = 'equistride-area';
 
-type ML = typeof import('@maplibre/maplibre-react-native');
+type ML = typeof import('./maplibre');
 let ml: ML | null | undefined;
 
 function load(): ML | null {
@@ -33,7 +33,7 @@ function load(): ML | null {
   }
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    ml = require('@maplibre/maplibre-react-native') as ML;
+    ml = require('./maplibre') as ML; // never require the package directly (see maplibre.ts)
   } catch {
     ml = null;
   }

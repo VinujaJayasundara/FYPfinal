@@ -13,7 +13,7 @@
  * mapRef still offers animateToRegion / fitToCoordinates, so the Run screen
  * did not need to change.
  */
-import React, { useImperativeHandle, useMemo, useRef } from 'react';
+import React, { useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import {
   Map,
@@ -21,10 +21,9 @@ import {
   Marker,
   GeoJSONSource,
   Layer,
-  NativeUserLocation,
   type CameraRef,
   type LngLat,
-} from '@maplibre/maplibre-react-native';
+} from '../core/maplibre';
 import { MAP_STYLE_URL } from '../core/offlineMap';
 
 interface Coordinate {
@@ -168,12 +167,25 @@ const markerStyles = StyleSheet.create({
 // ── Idle Map ──────────────────────────────────────────────
 
 export function IdleMap({ region }: { region: Region }) {
+  const camera = useRef<CameraRef>(null);
+  // GPS often arrives after the screen opens: move to it when it does
+  useEffect(() => {
+    camera.current?.easeTo({ center: toLngLat(region), duration: 600 });
+  }, [region.latitude, region.longitude]);
+
   return (
     <Map style={StyleSheet.absoluteFill} {...MAP_DEFAULTS}>
       <Camera
+        ref={camera}
         initialViewState={{ center: toLngLat(region), zoom: zoomForDelta(region.latitudeDelta, region.latitude) }}
       />
-      <NativeUserLocation />
+      {/* Position from the app's own GPS (expo-location), not MapLibre's location engine */}
+      <Marker id="here" lngLat={toLngLat(region)} anchor="center">
+        <View style={markerStyles.runnerMarker}>
+          <View style={markerStyles.runnerMarkerPulse} />
+          <View style={markerStyles.runnerMarkerDot} />
+        </View>
+      </Marker>
     </Map>
   );
 }

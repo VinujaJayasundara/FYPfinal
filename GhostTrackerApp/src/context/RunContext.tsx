@@ -184,23 +184,32 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   // ── Acquire initial location on mount ───────────────────
 
+  // GPS often has no fix yet when the app opens (phone just started, GPS
+  // just switched on), so keep trying every 5 s until the first position.
   useEffect(() => {
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        try {
-          const loc = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-          setInitialLocation({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-          });
-        } catch {
-          // GPS may be unavailable on web — fail silently
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const attempt = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted' || cancelled) return;
+        const loc =
+          (await Location.getLastKnownPositionAsync().catch(() => null)) ??
+          (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High })); // GPS, not just Wi-Fi/network
+        if (!cancelled && loc) {
+          setInitialLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+          return;
         }
+      } catch {
+        // no fix yet (or GPS unavailable on web): try again below
       }
-    })();
+      if (!cancelled && Platform.OS !== 'web') timer = setTimeout(attempt, 5000);
+    };
+    attempt();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   // ── Timer — ticks every second while running ────────────
