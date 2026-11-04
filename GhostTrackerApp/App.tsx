@@ -320,7 +320,8 @@ function AppContent() {
                   setActiveTab('dashboard');
                 }}
                 onBack={() => setActiveTab('dashboard')}
-                existingProfile={profile}
+                existingProfile={profile.physicalSaved ? profile : null}
+                initialName={profile.name}
               />
             )}
             <View style={{ height: 100 }} />

@@ -102,6 +102,13 @@ export function RaceProvider({ children }: { children: ReactNode }) {
   const savedRef = useRef<Set<string>>(new Set());
   /** Races we cancelled: answer stray snapshots with another cancel. */
   const cancelledRef = useRef<Set<string>>(new Set());
+  /**
+   * Races that are over (finished, or cancelled by the friend). The friend
+   * keeps sending its final snapshot for a while after the end; without this
+   * a late snapshot arriving after the results were closed would look like a
+   * new race and set it up again.
+   */
+  const endedRef = useRef<Set<string>>(new Set());
 
   const commit = useCallback((next: RaceState | null) => {
     raceRef.current = next;
@@ -138,6 +145,7 @@ export function RaceProvider({ children }: { children: ReactNode }) {
         if (p.type !== 'cancel') bt.sendRace(deviceId, { type: 'cancel', raceId: p.raceId });
         return;
       }
+      if (endedRef.current.has(p.raceId) && (!current || current.raceId !== p.raceId)) return;
 
       if (p.type === 'cancel') {
         if (current && current.raceId === p.raceId && current.phase !== 'done' && current.phase !== 'cancelled') {
@@ -253,6 +261,7 @@ export function RaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!race || race.phase !== 'done') return;
     if (doneAtRef.current === null) doneAtRef.current = Date.now();
+    endedRef.current.add(race.raceId);
     if (savedRef.current.has(race.raceId)) return;
     savedRef.current.add(race.raceId);
     const res = raceResult(race);
@@ -311,7 +320,10 @@ export function RaceProvider({ children }: { children: ReactNode }) {
   const dismissRace = useCallback(() => {
     setShowResults(false);
     const current = raceRef.current;
-    if (current && (current.phase === 'done' || current.phase === 'cancelled')) commit(null);
+    if (current && (current.phase === 'done' || current.phase === 'cancelled')) {
+      endedRef.current.add(current.raceId);
+      commit(null);
+    }
   }, [commit]);
 
   const value = useMemo<RaceContextValue>(() => {

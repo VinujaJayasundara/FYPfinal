@@ -53,6 +53,8 @@ const C = {
 interface ProfileSetupScreenProps {
   onSave: (name: string, age: number, weightKg: number, heightCm: number, gender: 'M' | 'F') => void;
   onBack?: () => void;
+  /** Name to start with when no profile has been saved yet. */
+  initialName?: string;
   existingProfile?: {
     name?: string;
     age: number;
@@ -148,9 +150,9 @@ function FormField({
   );
 }
 
-export default function ProfileSetupScreen({ onSave, onBack, existingProfile }: ProfileSetupScreenProps) {
+export default function ProfileSetupScreen({ onSave, onBack, existingProfile, initialName }: ProfileSetupScreenProps) {
   const { profile, setAvatar } = useProfile();
-  const [name, setName] = useState(existingProfile?.name ?? '');
+  const [name, setName] = useState(existingProfile?.name ?? initialName ?? '');
   const [age, setAge] = useState(existingProfile?.age?.toString() ?? '');
   const [weight, setWeight] = useState(existingProfile?.weightKg?.toString() ?? '');
   const [height, setHeight] = useState(existingProfile?.heightCm?.toString() ?? '');
@@ -321,6 +323,15 @@ export default function ProfileSetupScreen({ onSave, onBack, existingProfile }: 
               </View>
             )}
           </Animated.View>
+
+          {!existingProfile && (
+            <View style={styles.notSavedNote}>
+              <Text style={styles.notSavedText}>
+                Add your age, height, weight and sex and tap Save. The app needs them to calculate your NPI
+                (fair score); until then runs are saved without one.
+              </Text>
+            </View>
+          )}
 
           {/* ── Personal details form ─────────────────────── */}
           <View style={styles.section}>
@@ -557,6 +568,15 @@ export default function ProfileSetupScreen({ onSave, onBack, existingProfile }: 
 // ═══════════════════════════════════════════════════════════
 
 const styles = StyleSheet.create({
+  notSavedNote: {
+    backgroundColor: '#FF9F0A18',
+    borderColor: '#FF9F0A60',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  notSavedText: { color: '#FF9F0A', fontSize: 13, lineHeight: 18 },
   // ── Form ─────────────────────────────────────────────
   field: { marginTop: 14 },
   fieldPair: { flexDirection: 'row', gap: 12 },

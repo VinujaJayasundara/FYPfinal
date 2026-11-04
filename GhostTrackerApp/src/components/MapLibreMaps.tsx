@@ -219,6 +219,8 @@ export function RunningMap({
     <Map
       style={StyleSheet.absoluteFill}
       {...MAP_DEFAULTS}
+      // Keep the attribution button above the see-through tab bar shown during a run
+      attributionPosition={{ bottom: 90, right: 8 }}
       onRegionWillChange={e => {
         // Only a finger on the map stops the follow camera
         if ((e.nativeEvent as any)?.userInteraction) onPanDrag();

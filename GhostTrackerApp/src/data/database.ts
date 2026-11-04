@@ -248,27 +248,30 @@ export async function getGhostRecords(routeId: string): Promise<DBGhostRecord[]>
 
 // ── Leaderboard Repository ────────────────────────────────
 
+import { isBetterEntry } from '../../../GhostTracker/src/core/fairness/leaderboardEntry';
+export { isBetterEntry };
+
 export async function upsertLeaderboard(
   deviceId: string,
   userAlias: string,
   routeId: string,
   riiScore: number,
-  npiScore: number,
+  npiScore: number | null,
   totalTimeS: number,
   sessionId: string | null = null,
 ): Promise<void> {
-  const existing = await getDb().getFirstAsync<{ entry_id: string; rii_score: number }>(
-    `SELECT entry_id, rii_score FROM leaderboards WHERE node_id = ? AND route_id = ?`,
+  // leaderboards.npi_score is NOT NULL (0 when the runner had no profile)
+  const existing = await getDb().getFirstAsync<{ entry_id: string; rii_score: number; npi_score: number }>(
+    `SELECT entry_id, rii_score, npi_score FROM leaderboards WHERE node_id = ? AND route_id = ?`,
     [deviceId, routeId],
   );
 
   if (existing) {
-    // A tie (e.g. two first-on-route runs, both RII 1.0) takes the newer run
-    if (riiScore >= existing.rii_score) {
+    if (isBetterEntry({ npi: npiScore, rii: riiScore }, { npi: existing.npi_score, rii: existing.rii_score })) {
       await getDb().runAsync(
         `UPDATE leaderboards SET rii_score = ?, npi_score = ?, total_time_s = ?, user_alias = ?, session_id = ?, updated_at = ?
          WHERE entry_id = ?`,
-        [riiScore, npiScore, totalTimeS, userAlias, sessionId, Date.now(), existing.entry_id],
+        [riiScore, npiScore ?? 0, totalTimeS, userAlias, sessionId, Date.now(), existing.entry_id],
       );
     }
     // Ensure we are a witness to our own entry
@@ -283,7 +286,7 @@ export async function upsertLeaderboard(
       `INSERT INTO leaderboards (entry_id, session_id, node_id, npi_score, rolling_pace, updated_at, user_alias, route_id,
          rii_score, total_time_s, synced_at, created_at)
        VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, NULL, ?)`,
-      [id, sessionId, deviceId, npiScore, now, userAlias, routeId, riiScore, totalTimeS, now],
+      [id, sessionId, deviceId, npiScore ?? 0, now, userAlias, routeId, riiScore, totalTimeS, now],
     );
     await getDb().runAsync(
       `INSERT OR IGNORE INTO leaderboard_witnesses (entry_id, device_id) VALUES (?, ?)`,

@@ -431,6 +431,27 @@ export function RunProvider({ children }: { children: ReactNode }) {
           ? calculateRII(pbPace, finishedRun.avgPaceSPerKm)
           : null;
 
+      // NPI (thesis Stage 1) needs the physical profile; null until it is set
+      const userProfile = await getUserProfile();
+      const hasPace = finishedRun.avgPaceSPerKm > 0 && isFinite(finishedRun.avgPaceSPerKm);
+      const npiScore: number | null =
+        userProfile && hasPace && finishedRun.distanceM >= GHOST_CHECKPOINT_INTERVAL_M
+          ? calculateNPI(
+              {
+                age: userProfile.age,
+                weightKg: userProfile.weight_kg,
+                heightCm: userProfile.height_cm,
+                bmi: calculateBMI(userProfile.weight_kg, userProfile.height_cm),
+                gender: userProfile.gender as 'M' | 'F',
+              },
+              {
+                altitudeM: finishedRun.currentAltitudeM ?? 15,
+                distanceM: finishedRun.distanceM,
+                avgPaceSPerKm: finishedRun.avgPaceSPerKm,
+              },
+            ).npi
+          : null;
+
       // 4. Finalize session
       await finalizeSession(
         sessionId,
@@ -439,7 +460,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
           ? finishedRun.avgPaceSPerKm
           : null,
         riiScore,
-        null, // npiScore — calculated below
+        npiScore,
         finishedRun.elevationGainM,
         finishedRun.elevationLossM,
       );
@@ -491,27 +512,6 @@ export function RunProvider({ children }: { children: ReactNode }) {
       // 6. Calculate NPI and Upsert leaderboard entry
       const device = await getOrCreateDeviceProfile();
       const bestRII = riiScore ?? (isNewPB ? 1.0 : 0);
-      let npiScore = 0.0;
-      
-      const userProfile = await getUserProfile();
-      if (userProfile) {
-        const bmi = calculateBMI(userProfile.weight_kg, userProfile.height_cm);
-        const npiResult = calculateNPI(
-          {
-            age: userProfile.age,
-            weightKg: userProfile.weight_kg,
-            heightCm: userProfile.height_cm,
-            bmi,
-            gender: userProfile.gender as 'M' | 'F',
-          },
-          {
-            altitudeM: finishedRun.currentAltitudeM ?? 15,
-            distanceM: finishedRun.distanceM,
-            avgPaceSPerKm: finishedRun.avgPaceSPerKm,
-          }
-        );
-        npiScore = npiResult.npi;
-      }
 
       // G-Counter: one count per completed run, in this device's own slot
       await incrementCRDTCounter(device.deviceId);

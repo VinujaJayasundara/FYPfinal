@@ -38,6 +38,11 @@ export interface UserProfile {
   deviceId: string;
   /** Profile picture on this phone (null = show initials). */
   avatarUri: string | null;
+  /**
+   * Age/height/weight/sex have been saved by the user. Until then the
+   * numbers above are placeholders and no NPI can be calculated.
+   */
+  physicalSaved: boolean;
 }
 
 interface ProfileContextValue {
@@ -59,6 +64,7 @@ const DEFAULT_PROFILE: UserProfile = {
   bmi: calculateBMI(68, 175),
   deviceId: '',
   avatarUri: null,
+  physicalSaved: false,
 };
 
 // ── Context ───────────────────────────────────────────────
@@ -101,6 +107,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             bmi: dbProfile.bmi,
             deviceId: device.deviceId,
             avatarUri,
+            physicalSaved: true,
           });
           console.log('[Profile] Loaded from DB');
         } else {
@@ -134,6 +141,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         heightCm,
         gender,
         bmi,
+        physicalSaved: true,
       }));
 
       // Persist to SQLite (fire & forget)

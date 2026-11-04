@@ -275,7 +275,13 @@ function IdleView({
       </TouchableOpacity>
 
       {/* Content overlay */}
-      <View style={styles.idleContent}>
+      {/* Scrolls when the cards make it taller than the screen, and starts
+          below the OFFLINE / SYNC chips so nothing slides under them */}
+      <ScrollView
+        style={styles.idleScroll}
+        contentContainerStyle={styles.idleContent}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.idleTitle}>START YOUR RUN</Text>
         <Text style={styles.idleSub}>
           GPS tracking is ready.{'\n'}
@@ -314,7 +320,7 @@ function IdleView({
             {initialLocation.longitude.toFixed(4)}
           </Text>
         )}
-      </View>
+      </ScrollView>
 
       {/* ── Peer Discovery Modal ───────────────────────── */}
       <Modal
@@ -821,10 +827,11 @@ function FinishedView({
     }
   }, [routeCoords]);
 
-  // RII comparison
-  const pbPace = 360;
+  // RII vs the personal best that was in place when this run started
+  // (the same value the run is saved with). No PB yet = first run here.
+  const pbPace = run.pbPaceSPerKm;
   const rii =
-    run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm)
+    pbPace && run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm)
       ? calculateRII(pbPace, run.avgPaceSPerKm)
       : 0;
   const riiStatus = getRIIStatus(rii);
@@ -914,7 +921,7 @@ function FinishedView({
             {riiStatus.label}
           </Text>
           <Text style={styles.riiResultDesc}>
-            vs PB of {formatPace(pbPace)} /km
+            vs PB of {formatPace(pbPace ?? 0)} /km
           </Text>
         </View>
       )}
@@ -1035,11 +1042,16 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
   },
-  idleContent: {
+  idleScroll: {
     flex: 1,
+  },
+  idleContent: {
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingTop: 72, // below the OFFLINE / SYNC chips
+    paddingBottom: 24,
   },
   idleTitle: {
     fontSize: 32,
@@ -1428,7 +1440,7 @@ const styles = StyleSheet.create({
 
   recenterBtn: {
     position: 'absolute',
-    bottom: 12,
+    bottom: 90, // above the see-through tab bar shown during a run
     right: 12,
     width: 44,
     height: 44,
@@ -1447,7 +1459,7 @@ const styles = StyleSheet.create({
 
   ghostOverlay: {
     position: 'absolute',
-    bottom: 12,
+    bottom: 90, // above the see-through tab bar shown during a run
     left: 12,
     flexDirection: 'row',
     alignItems: 'center',
