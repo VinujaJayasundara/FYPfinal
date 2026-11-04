@@ -4,7 +4,7 @@
  * update or delete the saved area. Hidden on builds without MapLibre.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Platform, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import {
   offlineMapsAvailable,
@@ -22,19 +22,39 @@ function formatMB(bytes: number): string {
 
 export default function OfflineMapButton({ location }: { location: { latitude: number; longitude: number } | null }) {
   const [area, setArea] = useState<OfflineAreaInfo | null>(null);
+  const [checked, setChecked] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
+  const autoTriedRef = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
       setArea(await getOfflineArea());
     } catch (e) {
       console.warn('[OfflineMap] status:', e);
+    } finally {
+      setChecked(true);
     }
   }, []);
 
   useEffect(() => {
     if (offlineMapsAvailable()) refresh();
   }, [refresh]);
+
+  // First time GPS is known and no area is saved: save it automatically, so
+  // the map works later in airplane mode without the runner having to think
+  // of it. Silent if there is no internet (tried again on the next start).
+  useEffect(() => {
+    if (!checked || area || !location || autoTriedRef.current || !offlineMapsAvailable()) return;
+    autoTriedRef.current = true;
+    setProgress(0);
+    downloadOfflineArea(location.latitude, location.longitude, p => setProgress(Math.round(p)))
+      .then(info => {
+        setArea(info);
+        console.log('[OfflineMap] Area saved automatically:', (info.sizeBytes / 1048576).toFixed(1), 'MB');
+      })
+      .catch(e => console.log('[OfflineMap] Automatic save not possible now:', e?.message ?? e))
+      .finally(() => setProgress(null));
+  }, [checked, area, location]);
 
   const download = useCallback(async () => {
     if (!location) {

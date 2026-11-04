@@ -765,7 +765,7 @@ function RunningView({
           <Text style={styles.gpsLabel}>
             {currentPosition
               ? `${currentPosition.latitude.toFixed(5)}, ${currentPosition.longitude.toFixed(5)}`
-              : 'ACQUIRING GPS...'}
+              : 'ACQUIRING GPS… without internet the first fix can take a few minutes; best outdoors'}
           </Text>
           {currentPosition?.accuracy && (
             <Text style={styles.gpsAccuracy}>

@@ -101,6 +101,24 @@ export async function downloadOfflineArea(
   const savedAt = Date.now();
   return new Promise<OfflineAreaInfo>((resolve, reject) => {
     let settled = false;
+    // Offline, a download may never start or stall without an error: give up
+    // after 30 s with no progress and remove the unfinished pack.
+    let lastProgressAt = Date.now();
+    let lastPercent = -1;
+    const watchdog = setInterval(() => {
+      if (settled) {
+        clearInterval(watchdog);
+        return;
+      }
+      if (Date.now() - lastProgressAt > 30_000) {
+        settled = true;
+        clearInterval(watchdog);
+        findPack()
+          .then(p => (p ? m.OfflineManager.deletePack(p.id) : undefined))
+          .catch(() => undefined);
+        reject(new Error('No internet connection (download did not progress).'));
+      }
+    }, 5_000);
     m.OfflineManager.createPack(
       {
         mapStyle: MAP_STYLE_URL,
@@ -110,6 +128,10 @@ export async function downloadOfflineArea(
         metadata: { name: PACK_NAME, latitude, longitude, savedAt },
       },
       (_pack, status) => {
+        if (status.percentage > lastPercent) {
+          lastPercent = status.percentage;
+          lastProgressAt = Date.now();
+        }
         onProgress(status.percentage);
         if (!settled && (status.state === 'complete' || status.percentage >= 100)) {
           settled = true;

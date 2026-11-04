@@ -13,7 +13,7 @@
  * mapRef still offers animateToRegion / fitToCoordinates, so the Run screen
  * did not need to change.
  */
-import React, { useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import {
   Map,
@@ -116,8 +116,28 @@ function RouteLine({ id, coords, color }: { id: string; coords: Coordinate[]; co
   );
 }
 
+/**
+ * Used when the online style cannot be loaded and nothing is cached (no
+ * internet, area not downloaded): a plain dark background, so the route,
+ * ghost and markers still show in the app's colours instead of a blank.
+ */
+const OFFLINE_FALLBACK_STYLE = {
+  version: 8 as const,
+  sources: {},
+  layers: [{ id: 'background', type: 'background' as const, paint: { 'background-color': '#0a0e1a' } }],
+};
+
+/** The map style, switching to the dark fallback if loading fails. */
+function useMapStyle() {
+  const [failed, setFailed] = useState(false);
+  const onDidFailLoadingMap = useCallback(() => {
+    console.warn('[Map] Style could not be loaded (offline and not downloaded) - using the plain dark map');
+    setFailed(true);
+  }, []);
+  return { mapStyle: failed ? OFFLINE_FALLBACK_STYLE : MAP_STYLE_URL, onDidFailLoadingMap };
+}
+
 const MAP_DEFAULTS = {
-  mapStyle: MAP_STYLE_URL,
   logo: false,
   attribution: true,
   compass: false,
@@ -167,6 +187,7 @@ const markerStyles = StyleSheet.create({
 // ── Idle Map ──────────────────────────────────────────────
 
 export function IdleMap({ region }: { region: Region }) {
+  const style = useMapStyle();
   const camera = useRef<CameraRef>(null);
   // GPS often arrives after the screen opens: move to it when it does
   useEffect(() => {
@@ -174,7 +195,7 @@ export function IdleMap({ region }: { region: Region }) {
   }, [region.latitude, region.longitude]);
 
   return (
-    <Map style={StyleSheet.absoluteFill} {...MAP_DEFAULTS}>
+    <Map style={StyleSheet.absoluteFill} {...MAP_DEFAULTS} {...style}>
       <Camera
         ref={camera}
         initialViewState={{ center: toLngLat(region), zoom: zoomForDelta(region.latitudeDelta, region.latitude) }}
@@ -212,6 +233,7 @@ export function RunningMap({
   raceColors?: { me: string; friend: string; route: string } | null;
   onPanDrag: () => void;
 }) {
+  const style = useMapStyle();
   const camera = useRef<CameraRef>(null);
   useMapHandle(mapRef, camera);
 
@@ -219,6 +241,7 @@ export function RunningMap({
     <Map
       style={StyleSheet.absoluteFill}
       {...MAP_DEFAULTS}
+      {...style}
       // Keep the attribution button above the see-through tab bar shown during a run
       attributionPosition={{ bottom: 90, right: 8 }}
       onRegionWillChange={e => {
@@ -287,12 +310,13 @@ export function FinishedMap({
   initialRegion: Region;
   routeCoords: Coordinate[];
 }) {
+  const style = useMapStyle();
   const camera = useRef<CameraRef>(null);
   useMapHandle(mapRef, camera);
   const last = routeCoords[routeCoords.length - 1];
 
   return (
-    <Map style={StyleSheet.absoluteFill} {...MAP_DEFAULTS} dragPan={false} touchZoom={false} touchRotate={false}>
+    <Map style={StyleSheet.absoluteFill} {...MAP_DEFAULTS} {...style} dragPan={false} touchZoom={false} touchRotate={false}>
       <Camera
         ref={camera}
         initialViewState={
