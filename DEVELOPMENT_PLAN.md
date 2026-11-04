@@ -235,6 +235,30 @@ Makes Table 30 (regression testing on push) true and prepares Phase G.
 
 ---
 
+## Full emulator test (4 Nov)
+
+Tested on two emulators (not phones):
+- connect, decline and accept
+- 1 km race (3:48 vs 4:41; both phones agree)
+- board sync, ghost, the map while running and when finished
+- offline map in airplane mode (5.2 MB)
+- profile photo
+- battery log, Diagnostics
+- data kept after restart
+
+Seven bugs fixed (commit bb19a3e):
+1. A finished race was set up again by late snapshots.
+2. The finished screen's RII used a hard-coded 6:00/km PB.
+3. A run's NPI was never saved.
+4. The leaderboard kept the best RII instead of the best NPI.
+5. An unsaved profile could not be saved.
+6. The idle screen slid under the OFFLINE/SYNC chips.
+7. Overlays sat under the tab bar while running.
+
+**Privacy (NFR-06):** race snapshots no longer contain coordinates. Only status, start time, elapsed time, distance, pace and finish time are sent, and there is no friend pin on the map. Coordinates in packets from older builds are dropped. Tests check that the sent snapshot has no coordinate fields. Leaderboard sync and the control messages contain no coordinates either.
+
+---
+
 ## Phase G — Measurements and screenshots (14 – 16 Nov) — mainly you
 
 | # | Measurement | How | Replaces |

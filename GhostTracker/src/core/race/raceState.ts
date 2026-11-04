@@ -19,7 +19,11 @@ export interface RaceSample {
   distanceM: number;
 }
 
-/** What each phone sends about its own runner (about once a second). */
+/**
+ * What each phone sends about its own runner (about once a second).
+ * Deliberately no coordinates: only progress (distance, time, pace) leaves
+ * the phone, as for the leaderboard sync (thesis NFR-06).
+ */
 export interface RunnerSnapshot {
   status: RaceRunnerStatus;
   /** Epoch ms when this runner pressed Start (null before). */
@@ -27,8 +31,6 @@ export interface RunnerSnapshot {
   elapsedS: number;
   distanceM: number;
   avgPaceSPerKm: number;
-  latitude: number | null;
-  longitude: number | null;
   /** Time at the target distance (interpolated), once finished. */
   finishTimeS: number | null;
 }
@@ -74,8 +76,6 @@ function emptyRunner(now: number): RaceRunner {
     elapsedS: 0,
     distanceM: 0,
     avgPaceSPerKm: 0,
-    latitude: null,
-    longitude: null,
     finishTimeS: null,
     samples: [],
     lastUpdate: now,
@@ -168,7 +168,7 @@ function withPhase(state: RaceState): RaceState {
  */
 export function updateMe(
   state: RaceState,
-  run: { elapsedS: number; distanceM: number; avgPaceSPerKm: number; latitude: number | null; longitude: number | null },
+  run: { elapsedS: number; distanceM: number; avgPaceSPerKm: number },
   now: number,
 ): RaceState {
   if (state.phase === 'cancelled' || state.phase === 'done') return state;
@@ -200,8 +200,6 @@ export function updateMe(
       distanceM,
       avgPaceSPerKm:
         status === 'finished' && finishTimeS ? finishTimeS / (state.targetM / 1000) : run.avgPaceSPerKm,
-      latitude: run.latitude ?? me.latitude,
-      longitude: run.longitude ?? me.longitude,
       finishTimeS,
       samples,
       lastUpdate: now,
@@ -226,9 +224,19 @@ export function applyFriendSnapshot(state: RaceState, snap: RunnerSnapshot, now:
 
   const samples =
     snap.status === 'not-started' ? f.samples : pushSample(f.samples, { elapsedS: snap.elapsedS, distanceM: snap.distanceM });
+  // Copy only the known fields: anything else in a packet (e.g. coordinates
+  // from an older build) is dropped, never stored.
+  const clean: RunnerSnapshot = {
+    status: snap.status,
+    startedAt: snap.startedAt,
+    elapsedS: snap.elapsedS,
+    distanceM: snap.distanceM,
+    avgPaceSPerKm: snap.avgPaceSPerKm,
+    finishTimeS: snap.finishTimeS,
+  };
   return withPhase({
     ...state,
-    friend: { ...snap, samples, lastUpdate: now },
+    friend: { ...clean, samples, lastUpdate: now },
   });
 }
 
@@ -317,6 +325,13 @@ export function raceResult(state: RaceState): RaceResult {
 
 /** Snapshot of my runner to send to the friend. */
 export function mySnapshot(state: RaceState): RunnerSnapshot {
-  const { samples: _s, lastUpdate: _l, ...snap } = state.me;
-  return snap;
+  const m = state.me;
+  return {
+    status: m.status,
+    startedAt: m.startedAt,
+    elapsedS: m.elapsedS,
+    distanceM: m.distanceM,
+    avgPaceSPerKm: m.avgPaceSPerKm,
+    finishTimeS: m.finishTimeS,
+  };
 }

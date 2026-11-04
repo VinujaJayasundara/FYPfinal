@@ -208,15 +208,12 @@ export function RaceProvider({ children }: { children: ReactNode }) {
     const t = Date.now();
 
     if (run.status === 'running' && (me.status === 'not-started' || me.status === 'running')) {
-      const last = run.validPoints.length > 0 ? run.validPoints[run.validPoints.length - 1] : null;
       const next = updateMe(
         current,
         {
           elapsedS: run.elapsedS,
           distanceM: run.distanceM,
           avgPaceSPerKm: run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm) ? run.avgPaceSPerKm : 0,
-          latitude: last?.latitude ?? null,
-          longitude: last?.longitude ?? null,
         },
         t,
       );

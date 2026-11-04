@@ -32,7 +32,7 @@ function runMe(state: RaceState, v: number, untilS: number, startOffsetS = 0): R
   for (let t = 0; t <= untilS; t++) {
     s = updateMe(
       s,
-      { elapsedS: t, distanceM: v * t, avgPaceSPerKm: t > 0 ? 1000 / v : 0, latitude: 6.84, longitude: 79.89 },
+      { elapsedS: t, distanceM: v * t, avgPaceSPerKm: t > 0 ? 1000 / v : 0 },
       T0 + (startOffsetS + t) * 1000,
     );
   }
@@ -49,8 +49,6 @@ function friendSnap(v: number, t: number, startOffsetS = 0, targetM = 1000): Run
     elapsedS: finished ? finishT : t,
     distanceM: finished ? targetM : d,
     avgPaceSPerKm: 1000 / v,
-    latitude: 6.84,
-    longitude: 79.89,
     finishTimeS: finished ? finishT : null,
   };
 }
@@ -239,5 +237,23 @@ describe('interpolation helpers', () => {
     expect(timeAtDistance(samples, 15)).toBe(5);
     expect(timeAtDistance(samples, 40)).toBe(15);
     expect(timeAtDistance(samples, 60)).toBeNull();
+  });
+});
+
+describe('privacy (thesis NFR-06): no coordinates over Bluetooth', () => {
+  const COORD_KEYS = /lat|lon|lng|coord|position/i;
+
+  it('the snapshot a phone sends has no coordinate fields', () => {
+    const s = runMe(newRace(), 3, 60);
+    const snap = mySnapshot(s);
+    expect(Object.keys(snap).filter(k => COORD_KEYS.test(k))).toEqual([]);
+    expect(JSON.stringify(snap)).not.toMatch(COORD_KEYS);
+  });
+
+  it('coordinates in a received packet (older build) are dropped, not stored', () => {
+    const withCoords = { ...friendSnap(3, 30), latitude: 6.84, longitude: 79.89 } as RunnerSnapshot;
+    const s = applyFriendSnapshot(newRace(), withCoords, T0 + 30_000);
+    expect(Object.keys(s.friend).filter(k => COORD_KEYS.test(k))).toEqual([]);
+    expect(s.friend.distanceM).toBe(90);
   });
 });

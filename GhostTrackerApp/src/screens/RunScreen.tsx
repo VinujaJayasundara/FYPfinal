@@ -445,14 +445,11 @@ function RunningView({
 }) {
   const [followCamera, setFollowCamera] = useState(true);
 
-  // Connected race: friend's live pin (orange), me blue, purple route
+  // Connected race: me blue, purple route. The friend's position is never
+  // shared (only distance/time), so there is no friend pin on the map.
   const { race } = useRace();
   const inRace = race !== null && race.phase !== 'cancelled' && race.me.status !== 'not-started';
   const raceColors = inRace ? { me: RACE_ME_COLOR, friend: RACE_FRIEND_COLOR, route: RACE_COLOR } : null;
-  const racePeer =
-    inRace && race.friend.latitude !== null && race.friend.longitude !== null
-      ? { latitude: race.friend.latitude, longitude: race.friend.longitude, alias: race.friendAlias }
-      : null;
 
   const distKm = (run.distanceM / 1000).toFixed(2);
   const elapsed = formatTime(run.elapsedS);
@@ -558,7 +555,7 @@ function RunningView({
           routeCoords={routeCoords}
           currentPosition={currentPosition}
           ghostPosition={ghostPosition}
-          peerPosition={racePeer}
+          peerPosition={null}
           raceColors={raceColors}
           onPanDrag={() => setFollowCamera(false)}
         />
