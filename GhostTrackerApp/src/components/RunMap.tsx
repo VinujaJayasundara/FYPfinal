@@ -145,6 +145,9 @@ export function FinishedMap({
   mapRef: React.RefObject<any>;
   initialRegion: Region;
   routeCoords: Coordinate[];
+  /** Same props as the native map; the web preview ignores them. */
+  color?: string;
+  interactive?: boolean;
 }) {
   const html = buildLeafletHTML({
     center: { latitude: initialRegion.latitude, longitude: initialRegion.longitude },

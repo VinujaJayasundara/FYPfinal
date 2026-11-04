@@ -242,8 +242,8 @@ export function RunningMap({
       style={StyleSheet.absoluteFill}
       {...MAP_DEFAULTS}
       {...style}
-      // Keep the attribution button above the see-through tab bar shown during a run
-      attributionPosition={{ bottom: 90, right: 8 }}
+      // The running map ends above the numbers panel (which overlaps it by 18)
+      attributionPosition={{ bottom: 26, right: 8 }}
       onRegionWillChange={e => {
         // Only a finger on the map stops the follow camera
         if ((e.nativeEvent as any)?.userInteraction) onPanDrag();
@@ -305,10 +305,16 @@ export function FinishedMap({
   mapRef,
   initialRegion,
   routeCoords,
+  color = '#22c55e',
+  interactive = false,
 }: {
   mapRef: React.RefObject<any>;
   initialRegion: Region;
   routeCoords: Coordinate[];
+  /** Route colour (solo vs peer run). */
+  color?: string;
+  /** Allow pan/zoom (history detail). */
+  interactive?: boolean;
 }) {
   const style = useMapStyle();
   const camera = useRef<CameraRef>(null);
@@ -316,7 +322,14 @@ export function FinishedMap({
   const last = routeCoords[routeCoords.length - 1];
 
   return (
-    <Map style={StyleSheet.absoluteFill} {...MAP_DEFAULTS} {...style} dragPan={false} touchZoom={false} touchRotate={false}>
+    <Map
+      style={StyleSheet.absoluteFill}
+      {...MAP_DEFAULTS}
+      {...style}
+      dragPan={interactive}
+      touchZoom={interactive}
+      touchRotate={false}
+    >
       <Camera
         ref={camera}
         initialViewState={
@@ -325,7 +338,7 @@ export function FinishedMap({
             : { center: toLngLat(initialRegion), zoom: zoomForDelta(initialRegion.latitudeDelta, initialRegion.latitude) }
         }
       />
-      <RouteLine id="finished" coords={routeCoords} color="#22c55e" />
+      <RouteLine id="finished" coords={routeCoords} color={color} />
       {routeCoords.length > 0 && (
         <Marker id="start" lngLat={toLngLat(routeCoords[0])} anchor="center">
           <View style={markerStyles.startMarker}>

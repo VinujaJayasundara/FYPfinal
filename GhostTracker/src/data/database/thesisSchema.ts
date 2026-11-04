@@ -207,6 +207,17 @@ export const CREATE_SCHEMA_SQL = `
     low_power      INTEGER
   );
   CREATE INDEX IF NOT EXISTS idx_battery_run ON battery_log(run_started_at, recorded_at);
+
+  -- run_peers: friends a run was done with (connected over Bluetooth, or a
+  -- connected race). Keyed by the run's start time = sessions.start_time.
+  -- Only the friend's node ID and display name; never any location.
+  CREATE TABLE IF NOT EXISTS run_peers (
+    run_started_at INTEGER NOT NULL,
+    peer_id        TEXT NOT NULL,
+    peer_alias     TEXT NOT NULL,
+    kind           TEXT NOT NULL CHECK (kind IN ('connected', 'race')),
+    PRIMARY KEY (run_started_at, peer_id)
+  );
 `;
 
 const LEGACY_TABLES = [

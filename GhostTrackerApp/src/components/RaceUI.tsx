@@ -171,6 +171,57 @@ export function RaceLiveCard() {
   );
 }
 
+/**
+ * Compact race summary for the running screen: who leads and by how much,
+ * plus both runners' progress, in little vertical space so the map and the
+ * big numbers stay visible.
+ */
+export function RaceStrip() {
+  const { race, gap, friendStale, cancelRace } = useRace();
+  if (!race || race.phase === 'cancelled' || race.me.status === 'not-started') return null;
+  const lines = gap ? gapLines(race, gap) : [];
+  const meLeads = gap?.distanceGapM !== null && gap?.distanceGapM !== undefined && gap.distanceGapM >= 0;
+  const bar = (r: RaceRunner, color: string, name: string, stale: boolean) => (
+    <View style={{ flex: 1 }}>
+      <View style={styles.stripRow}>
+        <View style={[styles.dot, { backgroundColor: color }]} />
+        <Text style={styles.stripName} numberOfLines={1}>{name}</Text>
+        <Text style={[styles.stripDist, { color: statusColor(r, stale) }]}>
+          {r.status === 'finished' ? '🏁' : r.status === 'dnf' ? 'DNF' : stale ? '…' : `${(r.distanceM / 1000).toFixed(2)}`}
+        </Text>
+      </View>
+      <View style={styles.progressTrack}>
+        <View
+          style={[styles.progressFill, { width: `${Math.max(0, Math.min(1, r.distanceM / race.targetM)) * 100}%`, backgroundColor: color }]}
+        />
+      </View>
+    </View>
+  );
+  return (
+    <View style={styles.strip}>
+      <View style={styles.stripHeader}>
+        <Text style={styles.stripTitle}>
+          {RACE_SYMBOL} VS {race.friendAlias.toUpperCase()} · {race.targetM / 1000} KM
+        </Text>
+        {race.phase !== 'done' && (
+          <TouchableOpacity onPress={cancelRace} hitSlop={10}>
+            <Text style={styles.stripCancel}>Cancel</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      {lines.length > 0 && (
+        <Text style={[styles.stripGap, { color: meLeads ? C.green : RACE_FRIEND_COLOR }]} numberOfLines={1}>
+          {lines[0]}
+        </Text>
+      )}
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        {bar(race.me, RACE_ME_COLOR, 'You', false)}
+        {bar(race.friend, RACE_FRIEND_COLOR, race.friendAlias, friendStale)}
+      </View>
+    </View>
+  );
+}
+
 function RunnerRow({ label, color, text, textColor }: { label: string; color: string; text: string; textColor: string }) {
   return (
     <View style={styles.runnerRow}>
@@ -322,6 +373,14 @@ export function RaceResultsModal() {
 }
 
 const styles = StyleSheet.create({
+  strip: { borderWidth: 1, borderColor: RACE_COLOR + '80', backgroundColor: RACE_COLOR + '14', borderRadius: 14, padding: 10, marginBottom: 10 },
+  stripHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  stripTitle: { color: RACE_COLOR, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+  stripCancel: { color: C.red, fontSize: 12, fontWeight: '700' },
+  stripGap: { fontSize: 18, fontWeight: '800', marginTop: 4, marginBottom: 6 },
+  stripRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  stripName: { color: '#FFFFFF', fontSize: 12, fontWeight: '700', flex: 1 },
+  stripDist: { fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
   bannerWrap: { position: 'absolute', top: 56, left: 12, right: 12, zIndex: 1000, alignItems: 'center' },
   banner: {
     backgroundColor: RACE_COLOR,

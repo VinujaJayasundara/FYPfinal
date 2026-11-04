@@ -56,11 +56,17 @@ import {
   getOrCreateDeviceProfile,
   getSessionCount,
   updateCalibration,
+  getRunPacesOldestFirst,
   getUserProfile,
   getAllSessions,
   getGhostRecords,
 } from '../data/database';
 import { calculateNPI, calculateBMI } from '../core/npiEngine';
+import {
+  calibrationStatus,
+  CALIBRATION_RUNS,
+  type CalibrationStatus,
+} from '../../../GhostTracker/src/core/fairness/calibration';
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -101,6 +107,8 @@ export interface RunState {
   ghostFinished: boolean;
   /** PB average pace on this route (s/km), or null */
   pbPaceSPerKm: number | null;
+  /** Calibration when this run started: valid runs before it and the baseline */
+  calibrationAtStart: { runs: number; baselinePace: number | null };
 }
 
 interface RunContextValue {
@@ -115,6 +123,8 @@ interface RunContextValue {
   dbVersion: number;
   /** Manually bump dbVersion to trigger UI refreshes (used by sync) */
   incrementDbVersion: () => void;
+  /** 5-run baseline: scores are shown from the 5th valid run */
+  calibration: CalibrationStatus;
 }
 
 // ── Initial state ─────────────────────────────────────────
@@ -139,6 +149,7 @@ const INITIAL_RUN: RunState = {
   ghostSplitDistanceM: null,
   ghostFinished: false,
   pbPaceSPerKm: null,
+  calibrationAtStart: { runs: 0, baselinePace: null },
 };
 
 const ROUTE_ID = 'default-route';
@@ -282,6 +293,10 @@ export function RunProvider({ children }: { children: ReactNode }) {
     setRun({
       ...INITIAL_RUN,
       status: 'running',
+      calibrationAtStart: {
+        runs: calibrationRef.current.runs,
+        baselinePace: calibrationRef.current.baselinePace,
+      },
       startTime,
       ghostCheckpoints,
       ghostTrack,
@@ -386,6 +401,16 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   // ── DB version counter — bumped after each successful persist ──
   const [dbVersion, setDbVersion] = useState(0);
+
+  // ── 5-run baseline (calibration) ──
+  const [calibration, setCalibration] = useState<CalibrationStatus>(() => calibrationStatus([]));
+  const calibrationRef = useRef(calibration);
+  calibrationRef.current = calibration;
+  useEffect(() => {
+    getRunPacesOldestFirst()
+      .then(p => setCalibration(calibrationStatus(p)))
+      .catch(e => console.warn('[Calibration] load failed:', e));
+  }, [dbVersion]);
   const incrementDbVersion = useCallback(() => setDbVersion(v => v + 1), []);
 
   // ── Persist Run to SQLite ───────────────────────────────
@@ -404,7 +429,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
       });
 
       // 1. Create session
-      const sessionId = await createSession(ROUTE_ID);
+      const sessionId = await createSession(ROUTE_ID, finishedRun.startTime ?? undefined);
       if (finishedRun.startTime) {
         linkBatteryLog(finishedRun.startTime, sessionId).catch(e => console.warn('[Battery] link failed:', e));
       }
@@ -509,14 +534,19 @@ export function RunProvider({ children }: { children: ReactNode }) {
         console.log('[DB] New PB! Ghost updated.');
       }
 
-      // 6. Calculate NPI and Upsert leaderboard entry
+      // 6. Calibration (5-run baseline), including this run
+      const cal = calibrationStatus(await getRunPacesOldestFirst());
+      await updateCalibration(cal.runs, cal.baselinePace, cal.calibrated);
+      console.log(`[Calibration] ${cal.runs}/${CALIBRATION_RUNS} runs` + (cal.calibrated ? `, baseline ${cal.baselinePace?.toFixed(0)} s/km` : ''));
+
+      // 7. Leaderboard entry (shared with friends) only once calibrated
       const device = await getOrCreateDeviceProfile();
       const bestRII = riiScore ?? (isNewPB ? 1.0 : 0);
 
       // G-Counter: one count per completed run, in this device's own slot
       await incrementCRDTCounter(device.deviceId);
 
-      if (bestRII > 0) {
+      if (cal.calibrated && bestRII > 0) {
         await upsertLeaderboard(
           device.deviceId,
           device.userAlias,
@@ -526,20 +556,6 @@ export function RunProvider({ children }: { children: ReactNode }) {
           finishedRun.elapsedS,
           sessionId,
         );
-      }
-
-      // 7. Update calibration count
-      if (userProfile) {
-        const completedRuns = await getSessionCount();
-        const allSessions = await getAllSessions();
-        // Baseline pace = average of all session paces
-        const validPaces = allSessions
-          .filter(s => s.avg_pace_s_per_km !== null && s.avg_pace_s_per_km > 0)
-          .map(s => s.avg_pace_s_per_km!);
-        const baselinePace = validPaces.length > 0
-          ? validPaces.reduce((a, b) => a + b, 0) / validPaces.length
-          : null;
-        await updateCalibration(userProfile.id, completedRuns, baselinePace);
       }
 
       console.log('[DB] Run persisted successfully:', sessionId);
@@ -616,7 +632,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   return (
     <RunContext.Provider
-      value={{ run, initialLocation, startRun, stopRun, finishRun, resetRun, dbVersion, incrementDbVersion }}
+      value={{ run, initialLocation, startRun, stopRun, finishRun, resetRun, dbVersion, incrementDbVersion, calibration }}
     >
       {children}
     </RunContext.Provider>

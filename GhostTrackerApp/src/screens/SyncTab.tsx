@@ -33,7 +33,13 @@ const C = {
   gold: '#FFD60A',
 };
 
-// Mock device IDs for the simulator
+/**
+ * Development only: buttons that write SAMPLE runners into the leaderboard
+ * (not real peers). Off in normal use; never enable in a build for others.
+ */
+const SHOW_DEMO_DATA = false;
+
+// Mock device IDs for the simulator (only used when SHOW_DEMO_DATA is on)
 const MOCK_DEVICES = {
   'Tharindu': 'device-tharindu-001',
   'Supun': 'device-supun-002',
@@ -696,8 +702,8 @@ export function SyncTab() {
           </TouchableOpacity>
         )}
 
-        <Text style={styles.simulatorLabel}>DEMO DATA (SAMPLE RUNNERS, NOT REAL PEERS)</Text>
-        <View style={styles.peerButtons}>
+        {SHOW_DEMO_DATA && <Text style={styles.simulatorLabel}>DEMO DATA (SAMPLE RUNNERS, NOT REAL PEERS)</Text>}
+        {SHOW_DEMO_DATA && <View style={styles.peerButtons}>
           {(Object.keys(MOCK_DEVICES) as Array<keyof typeof MOCK_DEVICES>).map(name => (
             <TouchableOpacity
               key={name}
@@ -708,7 +714,7 @@ export function SyncTab() {
               <Text style={styles.buttonText}>Sync {name}</Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </View>}
       </View>
 
       {/* Synced Peers */}

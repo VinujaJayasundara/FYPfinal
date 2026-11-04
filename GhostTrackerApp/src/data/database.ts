@@ -119,7 +119,34 @@ export async function initDatabase(): Promise<void> {
   if (report.migrated) {
     console.log('[DB] Migrated to the thesis schema:', JSON.stringify(report));
   }
+  await removeDemoData();
   console.log('[DB] Database initialized with WAL mode');
+}
+
+/**
+ * Sample runners that the old "demo data" buttons wrote into the real
+ * leaderboard (fake device IDs, before and after the node-ID migration).
+ * Removed on every start (no-op once gone).
+ */
+const DEMO_DEVICE_IDS = ['device-tharindu-001', 'device-supun-002', 'device-kasun-003', 'device-jayavi-004'];
+
+async function removeDemoData(): Promise<void> {
+  const ids = [...DEMO_DEVICE_IDS, ...DEMO_DEVICE_IDS.map(nodeIdFor)];
+  const marks = ids.map(() => '?').join(', ');
+  const conn = getDb();
+  const before = await conn.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM leaderboards WHERE entry_id LIKE 'mock-entry-%' OR node_id IN (${marks})`,
+    ids,
+  );
+  if (!before || before.n === 0) return;
+  await conn.runAsync(
+    `DELETE FROM leaderboard_witnesses WHERE entry_id IN
+       (SELECT entry_id FROM leaderboards WHERE entry_id LIKE 'mock-entry-%' OR node_id IN (${marks}))`,
+    ids,
+  );
+  await conn.runAsync(`DELETE FROM leaderboards WHERE entry_id LIKE 'mock-entry-%' OR node_id IN (${marks})`, ids);
+  await conn.runAsync(`DELETE FROM crdt_nodes WHERE node_id IN (${marks})`, ids);
+  console.log(`[DB] Removed ${before.n} demo leaderboard entr${before.n === 1 ? 'y' : 'ies'}`);
 }
 
 function getDb(): SQLite.SQLiteDatabase {
@@ -138,15 +165,28 @@ const LEADERBOARD_COLUMNS = `entry_id AS id, node_id AS device_id, user_alias, r
 
 // ── Session Repository ────────────────────────────────────
 
-export async function createSession(routeId: string): Promise<string> {
+/** New session. startTime = when the run started (defaults to now). */
+export async function createSession(routeId: string, startTime?: number): Promise<string> {
   const id = generateId();
   const now = Date.now();
   await getDb().runAsync(
     `INSERT INTO sessions (session_id, user_id, start_time, total_distance, route_id, created_at)
      VALUES (?, (SELECT user_id FROM users LIMIT 1), ?, 0, ?, ?)`,
-    [id, now, routeId, now],
+    [id, startTime ?? now, routeId, now],
   );
   return id;
+}
+
+/**
+ * Average pace of every finished run, oldest first; null for runs too short
+ * to have a pace (< 10 m). Input for the 5-run calibration.
+ */
+export async function getRunPacesOldestFirst(): Promise<(number | null)[]> {
+  const rows = await getDb().getAllAsync<{ pace: number | null; dist: number }>(
+    `SELECT avg_pace_s_per_km AS pace, total_distance AS dist FROM sessions
+     WHERE end_time IS NOT NULL ORDER BY start_time ASC, created_at ASC`,
+  );
+  return rows.map(r => (r.pace && r.pace > 0 && isFinite(r.pace) && r.dist >= 10 ? r.pace : null));
 }
 
 export async function finalizeSession(
@@ -309,8 +349,24 @@ export async function getLeaderboard(routeId?: string): Promise<DBLeaderboardEnt
 
 export type DBLeaderboardEntryWithWitnesses = DBLeaderboardEntry & { witnesses: string[] };
 
-export async function getLeaderboardWithWitnesses(routeId?: string): Promise<DBLeaderboardEntryWithWitnesses[]> {
-  const entries = await getLeaderboard(routeId);
+/**
+ * What the Board shows: my own entry plus entries of real friends I have
+ * actually paired and synced with (they are in p2p_peers). Stays even when
+ * they are out of range (offline-first CRDT); demo or unknown entries are
+ * never shown.
+ */
+export async function getVisibleLeaderboard(): Promise<DBLeaderboardEntry[]> {
+  return await getDb().getAllAsync<DBLeaderboardEntry>(
+    `SELECT ${LEADERBOARD_COLUMNS} FROM leaderboards
+     WHERE node_id = (SELECT node_id FROM users LIMIT 1)
+        OR node_id IN (SELECT peer_id FROM p2p_peers)
+     ORDER BY rii_score DESC`,
+  );
+}
+
+/** Board rows (me + real synced friends only) with their witnesses. */
+export async function getLeaderboardWithWitnesses(): Promise<DBLeaderboardEntryWithWitnesses[]> {
+  const entries = await getVisibleLeaderboard();
   const result: DBLeaderboardEntryWithWitnesses[] = [];
   for (const entry of entries) {
     const witnesses = await getDb().getAllAsync<{ device_id: string }>(
@@ -480,11 +536,11 @@ export async function setAvatarUri(uri: string | null): Promise<void> {
   await getDb().runAsync(`UPDATE users SET avatar_uri = ?`, [uri]);
 }
 
-export async function updateCalibration(profileId: string, runs: number, baselinePace: number | null): Promise<void> {
-  const calibrated = runs >= 5 && baselinePace !== null ? 1 : 0;
+/** Store the calibration state on the (single) local user row. */
+export async function updateCalibration(runs: number, baselinePace: number | null, calibrated: boolean): Promise<void> {
   await getDb().runAsync(
-    `UPDATE users SET calibration_runs = ?, baseline_pace = ?, is_calibrated = ? WHERE user_id = ?`,
-    [runs, baselinePace, calibrated, profileId],
+    `UPDATE users SET calibration_runs = ?, baseline_pace = ?, is_calibrated = ?`,
+    [runs, baselinePace, calibrated ? 1 : 0],
   );
 }
 
@@ -666,4 +722,74 @@ export async function getBatteryLog(): Promise<DBBatterySample[]> {
   return await getDb().getAllAsync<DBBatterySample>(
     `SELECT * FROM battery_log ORDER BY run_started_at DESC, recorded_at ASC`,
   );
+}
+
+// ── Run history (with peers) ─────────────────────────────────
+
+import type { RunHistoryItem, RunPeer } from '../../../GhostTracker/src/core/history/runHistory';
+import { numberRuns } from '../../../GhostTracker/src/core/history/runHistory';
+
+/** Remember which friends a run was done with (connected or racing). */
+export async function addRunPeers(runStartedAt: number, peers: RunPeer[]): Promise<void> {
+  for (const p of peers) {
+    await getDb().runAsync(
+      `INSERT INTO run_peers (run_started_at, peer_id, peer_alias, kind) VALUES (?, ?, ?, ?)
+       ON CONFLICT(run_started_at, peer_id) DO UPDATE SET
+         peer_alias = excluded.peer_alias,
+         kind = CASE WHEN run_peers.kind = 'race' OR excluded.kind = 'race' THEN 'race' ELSE 'connected' END`,
+      [runStartedAt, p.peerId, p.alias, p.kind],
+    );
+  }
+}
+
+/** Every finished run with its peers and race outcome, numbered for the baseline. */
+export async function getRunHistory(): Promise<RunHistoryItem[]> {
+  const db = getDb();
+  const sessions = await db.getAllAsync<{
+    session_id: string;
+    start_time: number;
+    end_time: number;
+    total_distance: number;
+    avg_pace_s_per_km: number | null;
+    npi_score: number | null;
+    rii_score: number | null;
+    is_pb: number;
+    span_ms: number | null;
+  }>(
+    `SELECT s.session_id, s.start_time, s.end_time, s.total_distance, s.avg_pace_s_per_km, s.npi_score,
+            s.rii_score, s.is_pb,
+            (SELECT MAX(g.timestamp) - MIN(g.timestamp) FROM gps_points g WHERE g.session_id = s.session_id) AS span_ms
+     FROM sessions s WHERE s.end_time IS NOT NULL`,
+  );
+  const peers = await db.getAllAsync<{ run_started_at: number; peer_id: string; peer_alias: string; kind: 'connected' | 'race' }>(
+    `SELECT run_started_at, peer_id, peer_alias, kind FROM run_peers`,
+  );
+  const races = await db.getAllAsync<{ my_started_at: number | null; friend_id: string; friend_alias: string; outcome: string }>(
+    `SELECT my_started_at, friend_id, friend_alias, outcome FROM race_results WHERE my_started_at IS NOT NULL`,
+  );
+
+  const items = sessions.map(s => {
+    const runPeers: RunPeer[] = peers
+      .filter(p => p.run_started_at === s.start_time)
+      .map(p => ({ peerId: p.peer_id, alias: p.peer_alias, kind: p.kind }));
+    const race = races.find(r => r.my_started_at !== null && Math.abs(r.my_started_at - s.start_time) < 5000);
+    if (race && !runPeers.some(p => p.peerId === race.friend_id)) {
+      runPeers.push({ peerId: race.friend_id, alias: race.friend_alias, kind: 'race' });
+    }
+    const pace = s.avg_pace_s_per_km && s.avg_pace_s_per_km > 0 && s.total_distance >= 10 ? s.avg_pace_s_per_km : null;
+    return {
+      sessionId: s.session_id,
+      startTime: s.start_time,
+      // Older runs stored the save time as start, so use the GPS span when longer
+      durationS: Math.max(s.end_time - s.start_time, s.span_ms ?? 0) / 1000,
+      distanceM: s.total_distance,
+      paceSPerKm: pace,
+      npi: s.npi_score,
+      rii: s.rii_score,
+      isPB: s.is_pb === 1,
+      peers: runPeers,
+      raceOutcome: race ? (race.outcome as RunHistoryItem['raceOutcome']) : null,
+    };
+  });
+  return numberRuns(items);
 }

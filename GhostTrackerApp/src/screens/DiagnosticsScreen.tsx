@@ -145,7 +145,16 @@ interface Run {
 
 // ── Screen ─────────────────────────────────────────────────
 
-export default function DiagnosticsScreen({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+export default function DiagnosticsScreen({
+  visible,
+  onClose,
+  onOpenSyncLog,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  /** Opens the hidden sync screen and log (debugging). */
+  onOpenSyncLog?: () => void;
+}) {
   const [device] = useState(deviceInfo);
   const [busy, setBusy] = useState<string | null>(null);
   const [runs, setRuns] = useState<Run[]>([]);
@@ -292,6 +301,17 @@ export default function DiagnosticsScreen({ visible, onClose }: { visible: boole
               </>
             )}
           </View>
+
+          {/* Sync log (the Sync tab is hidden from normal use) */}
+          {onOpenSyncLog && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>BLUETOOTH SYNC (DEBUG)</Text>
+              <Text style={styles.small}>Peers, gossip status and the full sync log.</Text>
+              <TouchableOpacity style={[styles.button, { marginTop: 10 }]} onPress={onOpenSyncLog}>
+                <Text style={styles.buttonText}>OPEN SYNC LOG</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Battery */}
           <View style={styles.card}>

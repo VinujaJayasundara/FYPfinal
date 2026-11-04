@@ -22,14 +22,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { formatPace, formatTime, calculateRII, getRIIStatus } from './src/core/algorithms';
-import {
-  RUNNER_PROFILES,
-  getLeaderboard,
-  getNPILeaderboard,
-  generateGhostRace,
-  FAIRNESS_PROOF,
-  RunnerProfile,
-} from './src/data/mockData';
 import { formatNPI, getNPIStatus } from './src/core/npiEngine';
 
 // Database
@@ -66,7 +58,9 @@ import { SyncTab } from './src/screens/SyncTab';
 import UserBadge from './src/components/UserBadge';
 import FloatingRunIndicator from './src/components/FloatingRunIndicator';
 import BatteryLogger from './src/components/BatteryLogger';
+import RunPeerTracker from './src/components/RunPeerTracker';
 import DiagnosticsScreen from './src/screens/DiagnosticsScreen';
+import HistoryScreen from './src/screens/HistoryScreen';
 
 // ── Design Tokens ─────────────────────────────────────────
 const C = {
@@ -166,7 +160,6 @@ const TABS: { key: TabKey; label: string; Icon: React.FC<{ active: boolean }> }[
   { key: 'dashboard', label: 'Home', Icon: IconDashboard },
   { key: 'sessions', label: 'History', Icon: IconSessions },
   { key: 'leaderboard', label: 'Board', Icon: IconTrophy },
-  { key: 'sync', label: 'Sync', Icon: IconSync },
   { key: 'profile', label: 'Profile', Icon: IconProfile },
 ];
 
@@ -206,6 +199,7 @@ export default function App() {
           <RaceProvider>
             <AppContent />
             <BatteryLogger />
+            <RunPeerTracker />
             <RaceBanner />
             <RaceResultsModal />
           </RaceProvider>
@@ -279,7 +273,14 @@ function AppContent() {
         </View>
       )}
 
-      <DiagnosticsScreen visible={diagnosticsOpen} onClose={() => setDiagnosticsOpen(false)} />
+      <DiagnosticsScreen
+        visible={diagnosticsOpen}
+        onClose={() => setDiagnosticsOpen(false)}
+        onOpenSyncLog={() => {
+          setDiagnosticsOpen(false);
+          setActiveTab('sync');
+        }}
+      />
 
       {/* ── Floating Run Indicator ─────────────────────── */}
       <View style={styles.contentArea}>
@@ -297,12 +298,17 @@ function AppContent() {
           <RunScreen />
         </View>
         
-        {/* Sync stays mounted (hidden) so the Bluetooth link and gossip
-            session survive tab switches; unmounting it would stop BLE. */}
+        {/* Sync is not a tab any more (connect from the Run screen), but it
+            stays mounted (hidden) because it runs the gossip session and the
+            sync log; unmounting it would stop syncing. The log opens from
+            Diagnostics (long-press the title) for debugging. */}
         <ScrollView
           style={[styles.content, { display: activeTab === 'sync' ? 'flex' : 'none' }]}
           showsVerticalScrollIndicator={false}
         >
+          <TouchableOpacity onPress={() => setActiveTab('run')} style={{ paddingVertical: 8 }}>
+            <Text style={{ color: C.accent, fontSize: 16, fontWeight: '600' }}>‹ Back · Sync log (debug)</Text>
+          </TouchableOpacity>
           <SyncTab />
           <View style={{ height: 100 }} />
         </ScrollView>
@@ -310,8 +316,7 @@ function AppContent() {
         {activeTab !== 'run' && activeTab !== 'sync' && (
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {activeTab === 'dashboard' && <DashboardTab />}
-            {activeTab === 'sessions' && <SessionsTab />}
-            {activeTab === 'ghost' && <GhostTab />}
+            {activeTab === 'sessions' && <HistoryScreen />}
             {activeTab === 'leaderboard' && <LeaderboardTab />}
             {activeTab === 'profile' && (
               <ProfileSetupScreen
@@ -365,7 +370,7 @@ function AppContent() {
 
 function DashboardTab() {
   const { profile } = useProfile();
-  const { dbVersion } = useRun();
+  const { dbVersion, calibration } = useRun();
   const [sessionCount, setSessionCount] = useState(0);
   const [totalDist, setTotalDist] = useState(0);
   const [sessions, setSessions] = useState<DBSession[]>([]);
@@ -410,14 +415,32 @@ function DashboardTab() {
       {/* RII Hero */}
       <View style={styles.dualScoreHero}>
         <View style={styles.dualScoreItem}>
-          <View style={[styles.riiRing, { width: 110, height: 110, borderRadius: 55 }]}>
-            <Text style={[styles.riiHeroScore, { color: status.color, fontSize: 36 }]}>
-              {rii > 0 ? rii.toFixed(2) : '—'}
-            </Text>
-          </View>
-          <Text style={styles.dualScoreLabel}>RII</Text>
-          <Text style={[styles.dualScoreStatus, { color: status.color }]}>{status.label}</Text>
-          <Text style={styles.dualScoreDesc}>vs your Ghost</Text>
+          {calibration.calibrated ? (
+            <>
+              <View style={[styles.riiRing, { width: 110, height: 110, borderRadius: 55 }]}>
+                <Text style={[styles.riiHeroScore, { color: status.color, fontSize: 36 }]}>
+                  {rii > 0 ? rii.toFixed(2) : '—'}
+                </Text>
+              </View>
+              <Text style={styles.dualScoreLabel}>RII</Text>
+              <Text style={[styles.dualScoreStatus, { color: status.color }]}>{status.label}</Text>
+              <Text style={styles.dualScoreDesc}>vs your Ghost</Text>
+            </>
+          ) : (
+            <>
+              {/* First 5 runs: baseline progress instead of scores */}
+              <View style={[styles.riiRing, { width: 110, height: 110, borderRadius: 55, borderColor: C.amber + '60' }]}>
+                <Text style={[styles.riiHeroScore, { color: C.amber, fontSize: 32 }]}>
+                  {calibration.runs}/{calibration.needed}
+                </Text>
+              </View>
+              <Text style={styles.dualScoreLabel}>BASELINE</Text>
+              <Text style={[styles.dualScoreStatus, { color: C.amber }]}>
+                {calibration.needed - calibration.runs} run{calibration.needed - calibration.runs === 1 ? '' : 's'} to go
+              </Text>
+              <Text style={styles.dualScoreDesc}>scores appear after run {calibration.needed}</Text>
+            </>
+          )}
         </View>
         <View style={styles.dualScoreItem}>
           <View style={[styles.riiRing, { width: 110, height: 110, borderRadius: 55, borderColor: '#BF5AF240' }]}>
@@ -498,316 +521,13 @@ function DashboardTab() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// SESSIONS TAB — Real run history from SQLite
-// ═══════════════════════════════════════════════════════════
-
-function SessionsTab() {
-  const { dbVersion } = useRun();
-  const { profile } = useProfile();
-  const [sessions, setSessions] = useState<DBSession[]>([]);
-  const [races, setRaces] = useState<DBRaceResult[]>([]);
-
-  // A run belongs to a connected race if it started within 10 s of the race start
-  const raceFor = (startedAt: number) =>
-    races.find(r => r.my_started_at !== null && Math.abs(r.my_started_at - startedAt) < 10_000);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const all = await getAllSessions();
-        setRaces(await getRaceResults());
-        setSessions(all.filter(s => s.ended_at !== null));
-      } catch (e) {
-        console.error('[Sessions] Load failed:', e);
-      }
-    })();
-  }, [dbVersion]);
-
-  const validSessions = sessions.filter(s => s.avg_pace_s_per_km && s.avg_pace_s_per_km > 0);
-  const totalDist = sessions.reduce((sum, s) => sum + s.total_distance_m, 0);
-  const pbSession = validSessions.find(s => s.is_pb === 1);
-  const pbPace = pbSession?.avg_pace_s_per_km ?? null;
-  const firstPace = validSessions.length > 0 ? validSessions[validSessions.length - 1].avg_pace_s_per_km! : 0;
-  const latestPace = validSessions.length > 0 ? validSessions[0].avg_pace_s_per_km! : 0;
-  const improvement = firstPace > 0 && latestPace > 0 && latestPace < firstPace
-    ? ((1 - latestPace / firstPace) * 100) : 0;
-
-  return (
-    <View>
-      {/* User Stats Card */}
-      <View style={styles.card}>
-        <Text style={styles.cardName}>{profile.name}</Text>
-        <Text style={styles.cardLocation}>
-          {sessions.length} run{sessions.length !== 1 ? 's' : ''} · {(totalDist / 1000).toFixed(1)}km total
-        </Text>
-        <View style={styles.runnerStats}>
-          <View style={styles.runnerStatItem}>
-            <Text style={styles.runnerStatValue}>{pbPace ? formatPace(pbPace) : '—'}</Text>
-            <Text style={styles.runnerStatLabel}>PB PACE</Text>
-          </View>
-          <View style={styles.runnerStatItem}>
-            <Text style={[styles.runnerStatValue, { color: C.accent }]}>
-              {improvement > 0 ? `+${improvement.toFixed(1)}%` : '—'}
-            </Text>
-            <Text style={styles.runnerStatLabel}>IMPROVED</Text>
-          </View>
-          <View style={styles.runnerStatItem}>
-            <Text style={[styles.runnerStatValue, { color: C.teal }]}>
-              {sessions.length}
-            </Text>
-            <Text style={styles.runnerStatLabel}>SESSIONS</Text>
-          </View>
-        </View>
-      </View>
-
-      <Text style={styles.sectionLabelOutside}>YOUR RUNS</Text>
-
-      {sessions.length === 0 ? (
-        <View style={styles.card}>
-          <Text style={styles.cardLocation}>
-            No runs recorded yet. Head to the Run tab and start your first session!
-          </Text>
-        </View>
-      ) : (
-        sessions.map((s, i) => {
-          const duration = s.ended_at ? Math.floor((s.ended_at - s.started_at) / 1000) : 0;
-          const riiScore = s.rii_score ?? 0;
-          const riiStatus = getRIIStatus(riiScore);
-          const date = new Date(s.started_at);
-          const dateStr = `${date.getDate()}/${date.getMonth() + 1}`;
-          const race = raceFor(s.started_at);
-
-          return (
-            <View
-              key={s.id}
-              style={[styles.sessionCard, s.is_pb === 1 && styles.sessionCardPB, race && { borderColor: RACE_COLOR, borderWidth: 1 }]}
-            >
-              <View style={styles.sessionLeft}>
-                <Text style={styles.sessionNum}>Run {sessions.length - i}</Text>
-                <Text style={styles.sessionDate}>{dateStr}</Text>
-                {race && (
-                  <Text style={{ color: RACE_COLOR, fontSize: 11, fontWeight: '700', marginTop: 2 }} numberOfLines={1}>
-                    {RACE_SYMBOL} vs {race.friend_alias}
-                    {race.outcome === 'win' ? ' · WIN' : race.outcome === 'loss' ? ' · LOSS' : ''}
-                  </Text>
-                )}
-              </View>
-              <View style={styles.sessionCenter}>
-                <Text style={styles.sessionPace}>
-                  {s.avg_pace_s_per_km ? formatPace(s.avg_pace_s_per_km) : '--:--'} /km
-                </Text>
-                <Text style={styles.sessionTime}>
-                  {formatTime(duration)} · {Math.round(s.total_distance_m)}m
-                </Text>
-              </View>
-              <View style={styles.sessionRight}>
-                <Text style={[styles.sessionRII, { color: riiStatus.color }]}>
-                  {riiScore > 0 ? riiScore.toFixed(2) : '—'}
-                </Text>
-                {s.is_pb === 1 && <Text style={styles.pbBadge}>PB</Text>}
-              </View>
-            </View>
-          );
-        })
-      )}
-
-      {/* Demo data section */}
-      <Text style={[styles.sectionLabelOutside, { marginTop: 20 }]}>DEMO RUNNERS</Text>
-      <Text style={[styles.cardLocation, { marginBottom: 8, marginLeft: 4 }]}>
-        Sample data showing the RII framework across 5 runners
-      </Text>
-      {RUNNER_PROFILES.slice(0, 3).map((runner, ri) => (
-        <View key={ri} style={styles.sessionCard}>
-          <View style={styles.sessionLeft}>
-            <Text style={styles.sessionNum}>{runner.name}</Text>
-            <Text style={styles.sessionDate}>{runner.location.split(' ')[0]}</Text>
-          </View>
-          <View style={styles.sessionCenter}>
-            <Text style={styles.sessionPace}>{formatPace(runner.currentPBPace)} /km</Text>
-            <Text style={styles.sessionTime}>{runner.sessions.length} sessions</Text>
-          </View>
-          <View style={styles.sessionRight}>
-            <Text style={[styles.sessionRII, { color: C.accent }]}>
-              {runner.latestRII.toFixed(2)}
-            </Text>
-            <Text style={styles.improveBadge}>+{runner.totalImprovement.toFixed(0)}%</Text>
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
-// GHOST TAB — Real PB ghost data or demo fallback
-// ═══════════════════════════════════════════════════════════
-
-function GhostTab() {
-  const { dbVersion } = useRun();
-  const [ghostRecords, setGhostRecords] = useState<DBGhostRecord[]>([]);
-  const [pbSession, setPbSession] = useState<DBSession | null>(null);
-  const [latestSession, setLatestSession] = useState<DBSession | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const records = await getGhostRecords('default-route');
-        const pb = await getPBSession('default-route');
-        const allSessions = await getAllSessions();
-        const completed = allSessions.filter(s => s.ended_at !== null && s.avg_pace_s_per_km && s.avg_pace_s_per_km > 0);
-        setGhostRecords(records);
-        setPbSession(pb);
-        setLatestSession(completed.length > 0 ? completed[0] : null);
-      } catch (e) {
-        console.error('[Ghost] Load failed:', e);
-      }
-    })();
-  }, [dbVersion]);
-
-  // If we have real ghost data, show it
-  if (ghostRecords.length > 0 && pbSession && latestSession) {
-    const ghostPace = pbSession.avg_pace_s_per_km ?? 0;
-    const livePace = latestSession.avg_pace_s_per_km ?? 0;
-    const finalRII = ghostPace > 0 && livePace > 0 ? calculateRII(ghostPace, livePace) : 0;
-
-    // Build race table from ghost records (sample every Nth point)
-    const step = Math.max(1, Math.floor(ghostRecords.length / 15));
-    const racePoints = ghostRecords.filter((_, i) => i % step === 0 || i === ghostRecords.length - 1);
-
-    return (
-      <View>
-        <View style={styles.card}>
-          <Text style={styles.ghostHeader}>VS YOUR GHOST</Text>
-          <Text style={styles.cardLocation}>Your latest run vs your Personal Best</Text>
-          <View style={styles.ghostMatchup}>
-            <View style={[styles.ghostRunner, { borderColor: C.red + '60' }]}>
-              <Text style={[styles.ghostLabel, { color: C.red }]}>GHOST</Text>
-              <Text style={styles.ghostPace}>{ghostPace > 0 ? formatPace(ghostPace) : '--:--'}</Text>
-              <Text style={styles.ghostDetail}>PB Run</Text>
-            </View>
-            <Text style={styles.vsText}>VS</Text>
-            <View style={[styles.ghostRunner, { borderColor: C.accent + '60' }]}>
-              <Text style={[styles.ghostLabel, { color: C.accent }]}>YOU</Text>
-              <Text style={styles.ghostPace}>{livePace > 0 ? formatPace(livePace) : '--:--'}</Text>
-              <Text style={styles.ghostDetail}>Latest Run</Text>
-            </View>
-          </View>
-        </View>
-
-        {finalRII > 0 && (
-          <View style={[styles.card, styles.riiResultCard]}>
-            <Text style={styles.riiResultLabel}>RII SCORE</Text>
-            <Text style={[styles.riiResultValue, { color: finalRII >= 1 ? C.accent : C.red }]}>
-              {finalRII.toFixed(3)}
-            </Text>
-            <Text style={[styles.riiResultPct, { color: finalRII >= 1 ? C.accent : C.red }]}>
-              {finalRII >= 1
-                ? `+${((finalRII - 1) * 100).toFixed(1)}% faster than Ghost`
-                : `${((1 - finalRII) * 100).toFixed(1)}% behind Ghost`}
-            </Text>
-          </View>
-        )}
-
-        {/* Ghost Track Points */}
-        <View style={styles.card}>
-          <Text style={styles.sectionLabel}>GHOST TRACK ({ghostRecords.length} points)</Text>
-          <View style={styles.raceHeader}>
-            <Text style={styles.raceHeaderCell}>SEQ</Text>
-            <Text style={styles.raceHeaderCell}>PACE</Text>
-            <Text style={styles.raceHeaderCell}>LAT</Text>
-            <Text style={styles.raceHeaderCell}>LON</Text>
-          </View>
-          {racePoints.map((g, i) => (
-            <View key={i} style={[styles.raceRow, i % 2 === 0 && styles.raceRowAlt]}>
-              <Text style={styles.raceCell}>{g.seq_index}</Text>
-              <Text style={styles.raceCell}>{g.pace_s_per_km ? formatPace(g.pace_s_per_km) : '—'}</Text>
-              <Text style={styles.raceCell}>{g.latitude.toFixed(4)}</Text>
-              <Text style={styles.raceCell}>{g.longitude.toFixed(4)}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    );
-  }
-
-  // Fallback: show demo ghost race data
-  const ghostRace = generateGhostRace();
-  const vinuja = RUNNER_PROFILES[0];
-  const ghostPace = vinuja.sessions[0].paceSPerKm;
-  const livePace = vinuja.sessions[5].paceSPerKm;
-  const finalRII = calculateRII(ghostPace, livePace);
-
-  return (
-    <View>
-      {/* Prompt to record a run */}
-      <View style={[styles.card, { borderWidth: 1, borderColor: C.accent + '30' }]}>
-        <Text style={[styles.cardLocation, { color: C.accent, fontWeight: '600' }]}>
-          👻 Complete a run to create your own Ghost! Below is demo data.
-        </Text>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.ghostHeader}>VS YOUR GHOST</Text>
-        <Text style={styles.cardLocation}>Demo: Session 6 vs Ghost (Session 1)</Text>
-        <View style={styles.ghostMatchup}>
-          <View style={[styles.ghostRunner, { borderColor: C.red + '60' }]}>
-            <Text style={[styles.ghostLabel, { color: C.red }]}>GHOST</Text>
-            <Text style={styles.ghostPace}>{formatPace(ghostPace)}</Text>
-            <Text style={styles.ghostDetail}>Session 1</Text>
-          </View>
-          <Text style={styles.vsText}>VS</Text>
-          <View style={[styles.ghostRunner, { borderColor: C.accent + '60' }]}>
-            <Text style={[styles.ghostLabel, { color: C.accent }]}>YOU</Text>
-            <Text style={styles.ghostPace}>{formatPace(livePace)}</Text>
-            <Text style={styles.ghostDetail}>Session 6</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={[styles.card, styles.riiResultCard]}>
-        <Text style={styles.riiResultLabel}>RII SCORE</Text>
-        <Text style={[styles.riiResultValue, { color: C.accent }]}>
-          {finalRII.toFixed(3)}
-        </Text>
-        <Text style={[styles.riiResultPct, { color: C.accent }]}>
-          +{((finalRII - 1) * 100).toFixed(1)}% faster than Ghost
-        </Text>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionLabel}>SECOND-BY-SECOND</Text>
-        <View style={styles.raceHeader}>
-          <Text style={styles.raceHeaderCell}>TIME</Text>
-          <Text style={styles.raceHeaderCell}>GHOST</Text>
-          <Text style={styles.raceHeaderCell}>YOU</Text>
-          <Text style={styles.raceHeaderCell}>LEAD</Text>
-        </View>
-        {ghostRace.map((p, i) => (
-          <View key={i} style={[styles.raceRow, i % 2 === 0 && styles.raceRowAlt]}>
-            <Text style={styles.raceCell}>
-              {Math.floor(p.elapsedS / 60)}:{(p.elapsedS % 60).toString().padStart(2, '0')}
-            </Text>
-            <Text style={styles.raceCell}>{p.ghostDistM}m</Text>
-            <Text style={styles.raceCell}>{p.liveDistM}m</Text>
-            <Text style={[styles.raceCell, { color: p.leadLagM >= 0 ? C.accent : C.red }]}>
-              {p.leadLagM >= 0 ? '+' : ''}{p.leadLagM}m
-            </Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
-// LEADERBOARD TAB — Real + demo data
+// LEADERBOARD TAB — me + real synced friends
 // ═══════════════════════════════════════════════════════════
 
 function LeaderboardTab() {
   const { dbVersion } = useRun();
   const [rankBy, setRankBy] = useState<'improvement' | 'npi'>('npi');
   const [dbEntries, setDbEntries] = useState<DBLeaderboardEntry[]>([]);
-  const leaderboard = rankBy === 'npi' ? getNPILeaderboard() : getLeaderboard();
   const rankColors = [C.gold, C.silver, C.bronze];
 
   useEffect(() => {
@@ -894,63 +614,13 @@ function LeaderboardTab() {
         </>
       )}
 
-      {/* Demo leaderboard */}
-      <View style={styles.card}>
-        <Text style={styles.sectionLabel}>
-          {rankBy === 'npi' ? 'NPI LEADERBOARD (DEMO)' : 'RII LEADERBOARD (DEMO)'}
-        </Text>
-        <Text style={styles.cardLocation}>Bellanwila Park vs KDU Clubhouse</Text>
-        <Text style={[styles.cardLocation, { marginTop: 4 }]}>
-          {rankBy === 'npi'
-            ? 'Ranked by performance vs expected (age, BMI, altitude adjusted)'
-            : 'Ranked by improvement vs personal best'}
-        </Text>
-      </View>
-
-      {leaderboard.map((r, i) => {
-        const npiSt = getNPIStatus(r.npiScore);
-        return (
-          <View key={i} style={[styles.leaderRow, i === 0 && styles.leaderRowFirst]}>
-            <View style={styles.leaderRankContainer}>
-              {i < 3 ? (
-                <View style={[styles.rankDot, { backgroundColor: rankColors[i] }]}>
-                  <Text style={styles.rankDotText}>{i + 1}</Text>
-                </View>
-              ) : (
-                <Text style={styles.leaderRank}>#{i + 1}</Text>
-              )}
-            </View>
-            <View style={styles.leaderInfo}>
-              <Text style={styles.leaderName}>{r.name}</Text>
-              <Text style={styles.leaderLocation}>
-                {r.location} · {r.age}y · BMI {r.bmi.toFixed(1)} · {r.altitudeM}m alt
-              </Text>
-              <Text style={styles.leaderPace}>
-                {formatPace(r.sessions[0].paceSPerKm)} → {formatPace(r.currentPBPace)} /km
-              </Text>
-            </View>
-            <View style={styles.leaderRight}>
-              <Text style={[styles.leaderNPI, { color: npiSt.color }]}>
-                NPI {formatNPI(r.npiScore)}
-              </Text>
-              <Text style={styles.leaderRII}>
-                RII {r.latestRII.toFixed(2)}
-              </Text>
-              <Text style={[styles.leaderNPILabel, { color: npiSt.color }]}>
-                {npiSt.emoji} {npiSt.label}
-              </Text>
-            </View>
-          </View>
-        );
-      })}
-
       {/* Fairness Explanation */}
       <View style={[styles.card, { marginTop: 12 }]}>
         <Text style={styles.sectionLabel}>WHY NPI IS FAIRER</Text>
         <Text style={[styles.cardLocation, { lineHeight: 20 }]}>
           {rankBy === 'npi'
-            ? 'Supun (BMI 29.4, age 30) is the slowest runner at 6:00/km but ranks highest — his performance is most exceptional relative to what the model predicts for his profile.'
-            : 'Traditional RII ranks by self-improvement. Switch to NPI to see fair cross-person ranking.'}
+            ? 'NPI compares each run with what the model expects for that runner (age, BMI, sex, altitude, distance). A slower runner who beats their own expectation ranks above a faster runner who does not.'
+            : 'RII ranks by improvement against each runner’s own personal best. Switch to NPI for the fair cross-person ranking.'}
         </Text>
       </View>
     </View>

@@ -38,7 +38,7 @@ import {
 import { useRun, type GPSPoint, type RunState } from '../context/RunContext';
 import { useProfile } from '../context/ProfileContext';
 import { FriendConnectButton } from '../components/FriendConnect';
-import { RaceSetupCard, RaceLiveCard } from '../components/RaceUI';
+import { RaceSetupCard, RaceLiveCard, RaceStrip } from '../components/RaceUI';
 import { useRace, RACE_COLOR, RACE_ME_COLOR, RACE_FRIEND_COLOR } from '../context/RaceContext';
 import { P2PSyncService, LivePosition, type P2PStatus } from '../core/p2pSync';
 import { calculateNPI, formatNPI, getNPIStatus } from '../core/npiEngine';
@@ -52,6 +52,12 @@ import {
   fitMapToCoordinates,
 } from '../components/RunMap';
 import OfflineMapButton from '../components/OfflineMapButton';
+import RunScores from '../components/RunScores';
+import { CALIBRATION_RUNS } from '../../../GhostTracker/src/core/fairness/calibration';
+import { SOLO_COLOR } from '../theme/runColors';
+
+/** Development only: the old Wi-Fi relay sync (before Bluetooth). Off. */
+const SHOW_RELAY_SYNC = false;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MAP_HEIGHT = SCREEN_HEIGHT * 0.45;
@@ -261,8 +267,8 @@ function IdleView({
       {/* Offline map — Top Left */}
       <OfflineMapButton location={initialLocation} />
 
-      {/* ⚡ SYNC Button — Top Right */}
-      <TouchableOpacity
+      {/* Old Wi-Fi relay SYNC chip: hidden; "Connect with a friend" replaces it */}
+      {SHOW_RELAY_SYNC && <TouchableOpacity
         style={[styles.syncButton, isConnected && styles.syncButtonConnected]}
         onPress={() => competition.setShowSyncModal(true)}
       >
@@ -272,7 +278,7 @@ function IdleView({
             ? `${competition.connectedPeerAlias || 'Peer'}`
             : 'SYNC'}
         </Text>
-      </TouchableOpacity>
+      </TouchableOpacity>}
 
       {/* Content overlay */}
       {/* Scrolls when the cards make it taller than the screen, and starts
@@ -287,7 +293,7 @@ function IdleView({
           GPS tracking is ready.{'\n'}
           {isConnected
             ? `🔗 Connected to ${competition.connectedPeerAlias || 'a peer'} — start a competition!`
-            : 'Tap SYNC to race a friend.'}
+            : 'Tap Connect with a friend to sync or race.'}
         </Text>
 
         <TouchableOpacity style={styles.startButton} onPress={onStart}>
@@ -545,10 +551,15 @@ function RunningView({
         longitudeDelta: 0.005,
       };
 
+  // 5-run baseline: no scores during the first 5 runs
+  const runNo = run.calibrationAtStart.runs + 1;
+  const calibrating = runNo < CALIBRATION_RUNS;
+  const routeColor = inRace ? RACE_COLOR : SOLO_COLOR;
+
   return (
     <View style={styles.runContainer}>
-      {/* ── Live Map ────────────────────────────────────── */}
-      <View style={styles.mapWrapper}>
+      {/* ── Map: always visible, follows the runner ─────── */}
+      <View style={styles.liveMapArea}>
         <RunningMap
           mapRef={mapRef}
           initialRegion={initialRegion}
@@ -556,232 +567,71 @@ function RunningView({
           currentPosition={currentPosition}
           ghostPosition={ghostPosition}
           peerPosition={null}
-          raceColors={raceColors}
+          raceColors={raceColors ?? { me: SOLO_COLOR, friend: RACE_FRIEND_COLOR, route: routeColor }}
           onPanDrag={() => setFollowCamera(false)}
         />
 
-        {/* Map overlays */}
         <View style={styles.mapTopOverlay}>
           <View style={styles.liveBar}>
             <View style={styles.liveDot} />
             <Text style={styles.liveText}>RECORDING</Text>
-            <Text style={styles.gpsCount}>
-              {run.validPoints.length} pts · {run.filteredCount} filtered
-            </Text>
+            {!currentPosition && <Text style={styles.gpsCount}>waiting for GPS…</Text>}
           </View>
         </View>
 
-        {/* Re-center button */}
         {!followCamera && Platform.OS !== 'web' && (
-          <TouchableOpacity
-            style={styles.recenterBtn}
-            onPress={() => setFollowCamera(true)}
-          >
+          <TouchableOpacity style={styles.recenterBtn} onPress={() => setFollowCamera(true)}>
             <View style={styles.recenterIcon} />
           </TouchableOpacity>
         )}
 
-        {/* Ghost status overlay on map */}
         {hasGhost && (
           <View style={styles.ghostOverlay}>
-            <Text style={styles.ghostOverlayLabel}>GHOST</Text>
-            <Text style={[styles.ghostOverlayText, { color: ghostLeadColor }]}>
-              {ghostLeadText}
-            </Text>
-          </View>
-        )}
-
-        {/* Peer status overlay on map */}
-        {hasPeer && peer && (
-          <View style={styles.peerMapOverlay}>
-            <Text style={styles.peerMapOverlayLabel}>{peer.alias.toUpperCase()}</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Text style={styles.peerMapOverlayText}>
-                NPI {peer.npiScore !== null ? peer.npiScore.toFixed(2) : '-.--'}
-              </Text>
-              <Text style={[styles.peerMapOverlayText, { color: peerLeadColor }]}>
-                {peerLeadText}
-              </Text>
-            </View>
+            <Text style={styles.ghostOverlayLabel}>👻</Text>
+            <Text style={[styles.ghostOverlayText, { color: ghostLeadColor }]}>{ghostLeadText}</Text>
           </View>
         )}
       </View>
 
-      {/* ── Stats Panel ─────────────────────────────────── */}
-      <ScrollView
-        style={styles.statsPanel}
-        contentContainerStyle={styles.statsPanelContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Connected race: live gap and both runners */}
-        <RaceLiveCard />
+      {/* ── Panel: the numbers that matter, large ────────── */}
+      <View style={styles.livePanel}>
+        <RaceStrip />
 
-        {/* Main distance */}
-        <View style={styles.mainStat}>
-          <Text style={styles.mainStatValue}>{distKm}</Text>
-          <Text style={styles.mainStatUnit}>km</Text>
-        </View>
-
-        {/* Stats grid */}
-        <View style={styles.liveStats}>
-          <View style={styles.liveStatItem}>
-            <Text style={styles.liveStatValue}>{elapsed}</Text>
-            <Text style={styles.liveStatLabel}>Duration</Text>
+        <View style={styles.bigRow}>
+          <View style={styles.bigCell}>
+            <Text style={styles.bigValue} numberOfLines={1} adjustsFontSizeToFit>{elapsed}</Text>
+            <Text style={styles.bigLabel}>TIME</Text>
           </View>
-          <View style={styles.divider} />
-          <View style={styles.liveStatItem}>
-            <Text style={styles.liveStatValue}>{pace}</Text>
-            <Text style={styles.liveStatLabel}>Avg Pace</Text>
+          <View style={styles.bigCell}>
+            <Text style={[styles.bigValue, { color: routeColor }]} numberOfLines={1} adjustsFontSizeToFit>{distKm}</Text>
+            <Text style={styles.bigLabel}>KM</Text>
           </View>
-          <View style={styles.divider} />
-          <View style={styles.liveStatItem}>
-            <Text style={styles.liveStatValue}>{currentPace}</Text>
-            <Text style={styles.liveStatLabel}>Current</Text>
+          <View style={styles.bigCell}>
+            <Text style={styles.bigValue} numberOfLines={1} adjustsFontSizeToFit>{currentPace}</Text>
+            <Text style={styles.bigLabel}>PACE /KM</Text>
           </View>
         </View>
 
-        {/* Elevation stats */}
-        <View style={styles.liveStats}>
-          <View style={styles.liveStatItem}>
-            <Text style={[styles.liveStatValue, { color: '#00FF87' }]}>
-              ↑{Math.round(run.elevationGainM)}m
-            </Text>
-            <Text style={styles.liveStatLabel}>Elev Gain</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.liveStatItem}>
-            <Text style={[styles.liveStatValue, { color: '#FF3B30' }]}>
-              ↓{Math.round(run.elevationLossM)}m
-            </Text>
-            <Text style={styles.liveStatLabel}>Elev Loss</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.liveStatItem}>
-            <Text style={styles.liveStatValue}>
-              {run.currentAltitudeM !== null ? `${Math.round(run.currentAltitudeM)}m` : '--'}
-            </Text>
-            <Text style={styles.liveStatLabel}>Altitude</Text>
-          </View>
-        </View>
-
-        {/* Live RII and ghost time gap vs the personal best */}
-        <View style={styles.liveRIIBar}>
-          <View style={styles.liveRIILeft}>
-            <Text style={styles.liveRIILabel}>VS GHOST</Text>
-            <Text style={[styles.liveRIIValue, { color: riiStatus.color }]}>
-              RII {liveRII > 0 ? liveRII.toFixed(3) : '-.---'}
-            </Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={[styles.ghostLeadBadge, { color: ghostLeadColor }]}>
-              {ghostLeadText}
-            </Text>
-            {run.ghostSplitDistanceM !== null && !run.ghostFinished && (
-              <Text style={styles.liveRIILabel}>at {run.ghostSplitDistanceM} m</Text>
-            )}
-          </View>
-        </View>
-
-        {/* ── COMPETITION OVERLAY ─────────────────────── */}
-        {hasPeer && peer && (
-          <View style={styles.competitionCard}>
-            <View style={styles.competitionHeader}>
-              <View style={styles.competitionDot} />
-              <Text style={styles.competitionTitle}>VS {(peer.alias || 'PEER').toUpperCase()}</Text>
-              <Text style={[styles.competitionLead, { color: peerLeadColor }]}>
-                {peerLeadText}
-              </Text>
-            </View>
-
-            <View style={styles.competitionStats}>
-              <View style={styles.competitionStatItem}>
-                <Text style={styles.competitionStatLabel}>NPI</Text>
-                <Text style={styles.competitionStatValue}>
-                  {(() => {
-                    if (run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm) && profile.age > 0) {
-                      const res = calculateNPI(
-                        { age: profile.age, weightKg: profile.weightKg, heightCm: profile.heightCm, bmi: profile.bmi, gender: profile.gender },
-                        { altitudeM: run.currentAltitudeM ?? 15, distanceM: run.distanceM, avgPaceSPerKm: run.avgPaceSPerKm },
-                      );
-                      return formatNPI(res.npi);
-                    }
-                    return '-.--';
-                  })()}
-                </Text>
-                <Text style={styles.competitionStatLabel}>YOU</Text>
-              </View>
-              <View style={styles.competitionDivider} />
-              <View style={styles.competitionStatItem}>
-                <Text style={styles.competitionStatLabel}>NPI</Text>
-                <Text style={[styles.competitionStatValue, { color: '#0A84FF' }]}>
-                  {peer.npiScore !== null ? formatNPI(peer.npiScore) : '-.--'}
-                </Text>
-                <Text style={styles.competitionStatLabel}>THEM</Text>
-              </View>
-              <View style={styles.competitionDivider} />
-              <View style={styles.competitionStatItem}>
-                <Text style={styles.competitionStatLabel}>PACE</Text>
-                <Text style={styles.competitionStatValue}>
-                  {run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm) ? formatPace(run.avgPaceSPerKm) : '--:--'}
-                </Text>
-                <Text style={styles.competitionStatLabel}>YOU</Text>
-              </View>
-              <View style={styles.competitionDivider} />
-              <View style={styles.competitionStatItem}>
-                <Text style={styles.competitionStatLabel}>PACE</Text>
-                <Text style={[styles.competitionStatValue, { color: '#0A84FF' }]}>
-                  {peer.avgPaceSPerKm > 0 && isFinite(peer.avgPaceSPerKm) ? formatPace(peer.avgPaceSPerKm) : '--:--'}
-                </Text>
-                <Text style={styles.competitionStatLabel}>THEM</Text>
-              </View>
-            </View>
-
-            {peer.npiScore !== null && (
-              <View style={styles.competitionNpiRow}>
-                <Text style={styles.competitionNpiLabel}>Their Performance:</Text>
-                <Text style={[styles.competitionNpiValue, { color: getNPIStatus(peer.npiScore).color }]}>
-                  {getNPIStatus(peer.npiScore).emoji} {getNPIStatus(peer.npiScore).label}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Split times */}
-        {run.splitPaces.length > 0 && (
-          <View style={styles.splitsContainer}>
-            <Text style={styles.splitsTitle}>SPLITS</Text>
-            {run.splitPaces.map((p, i) => (
-              <View key={i} style={styles.splitRow}>
-                <Text style={styles.splitKm}>km {i + 1}</Text>
-                <Text style={styles.splitPace}>{formatPace(p)} /km</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* GPS accuracy */}
-        <View style={styles.gpsIndicator}>
-          <Text style={styles.gpsLabel}>
-            {currentPosition
-              ? `${currentPosition.latitude.toFixed(5)}, ${currentPosition.longitude.toFixed(5)}`
-              : 'ACQUIRING GPS… without internet the first fix can take a few minutes; best outdoors'}
+        <Text style={styles.smallLine} numberOfLines={1}>
+          avg {pace}/km
+          {!hasGhost ? ' · first run sets your ghost' : ''}
+          {calibrating
+            ? ` · baseline run ${runNo} of ${CALIBRATION_RUNS}`
+            : liveRII > 0
+              ? ` · RII ${liveRII.toFixed(2)}`
+              : ''}
+        </Text>
+        {!currentPosition && (
+          <Text style={styles.gpsHint}>
+            Acquiring GPS… without internet the first fix can take a few minutes; best outdoors.
           </Text>
-          {currentPosition?.accuracy && (
-            <Text style={styles.gpsAccuracy}>
-              ±{currentPosition.accuracy.toFixed(0)}m accuracy
-            </Text>
-          )}
+        )}
+
+        <View style={styles.stopRow}>
+          <TouchableOpacity style={styles.stopButton} onPress={onStop}>
+            <View style={styles.stopInner} />
+          </TouchableOpacity>
         </View>
-
-      </ScrollView>
-
-      {/* Stop Button Overlay */}
-      <View style={styles.stopAreaOverlay}>
-        <TouchableOpacity style={styles.stopButton} onPress={onStop}>
-          <View style={styles.stopInner} />
-        </TouchableOpacity>
-        <Text style={styles.stopLabelOverlay}>STOP</Text>
       </View>
     </View>
   );
@@ -831,7 +681,21 @@ function FinishedView({
     pbPace && run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm)
       ? calculateRII(pbPace, run.avgPaceSPerKm)
       : 0;
-  const riiStatus = getRIIStatus(rii);
+
+  // 5-run baseline: this run's number among valid runs
+  const { calibration } = useRun();
+  const { profile: me } = useProfile();
+  const hasPace = run.distanceM >= 10 && run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm);
+  const runNo = hasPace ? run.calibrationAtStart.runs + 1 : null;
+  // Baseline is fixed at run 5; on the 5th run itself it is known once saved
+  const baselinePace = run.calibrationAtStart.baselinePace ?? calibration.baselinePace;
+  const npi =
+    hasPace && me.physicalSaved
+      ? calculateNPI(
+          { age: me.age, weightKg: me.weightKg, heightCm: me.heightCm, bmi: me.bmi, gender: me.gender },
+          { altitudeM: run.currentAltitudeM ?? 15, distanceM: run.distanceM, avgPaceSPerKm: run.avgPaceSPerKm },
+        ).npi
+      : null;
 
   const initialRegion = routeCoords.length > 0
     ? {
@@ -905,23 +769,15 @@ function FinishedView({
         </View>
       </View>
 
-      {/* RII Score */}
-      {rii > 0 && (
-        <View style={styles.riiResultCard}>
-          <Text style={styles.riiResultLabel}>RII Score</Text>
-          <Text style={[styles.riiResultValue, { color: riiStatus.color }]}>
-            {rii.toFixed(3)}
-          </Text>
-          <Text
-            style={{ color: riiStatus.color, fontWeight: '600', fontSize: 14 }}
-          >
-            {riiStatus.label}
-          </Text>
-          <Text style={styles.riiResultDesc}>
-            vs PB of {formatPace(pbPace ?? 0)} /km
-          </Text>
-        </View>
-      )}
+      {/* Scores: baseline progress during the first 5 runs, then NPI / RII / vs baseline */}
+      <RunScores
+        runNo={runNo}
+        pace={hasPace ? run.avgPaceSPerKm : null}
+        npi={npi}
+        rii={rii > 0 ? rii : null}
+        pbPace={pbPace}
+        baselinePace={baselinePace}
+      />
 
       {/* GPS Stats */}
       <View style={styles.gpsStatsCard}>
@@ -1396,6 +1252,62 @@ const styles = StyleSheet.create({
   // ── RUNNING ───────────────────────────────────────────
   runContainer: {
     flex: 1,
+    backgroundColor: '#000',
+  },
+
+  // Running: map on top (always visible), numbers panel below
+  liveMapArea: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  livePanel: {
+    backgroundColor: '#0B0B0D',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    marginTop: -18, // overlap the map edge slightly
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 84, // clear the see-through tab bar
+  },
+  bigRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  bigCell: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  bigValue: {
+    color: '#FFFFFF',
+    fontSize: 40,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -1,
+  },
+  bigLabel: {
+    color: '#8E8E93',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    marginTop: 2,
+  },
+  smallLine: {
+    color: '#8E8E93',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 10,
+    fontVariant: ['tabular-nums'],
+  },
+  gpsHint: {
+    color: '#FF9F0A',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  stopRow: {
+    alignItems: 'center',
+    marginTop: 12,
   },
 
   // Map
@@ -1437,7 +1349,7 @@ const styles = StyleSheet.create({
 
   recenterBtn: {
     position: 'absolute',
-    bottom: 90, // above the see-through tab bar shown during a run
+    bottom: 30, // the map ends above the numbers panel
     right: 12,
     width: 44,
     height: 44,
@@ -1456,7 +1368,7 @@ const styles = StyleSheet.create({
 
   ghostOverlay: {
     position: 'absolute',
-    bottom: 90, // above the see-through tab bar shown during a run
+    bottom: 30, // the map ends above the numbers panel
     left: 12,
     flexDirection: 'row',
     alignItems: 'center',
