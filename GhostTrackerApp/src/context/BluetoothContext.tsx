@@ -42,6 +42,11 @@ interface BluetoothContextValue {
   setGossipStatus: (s: string) => void;
   start: () => Promise<boolean>;
   stop: () => Promise<void>;
+  /**
+   * Before connecting: asks for the Nearby-devices permission if needed and
+   * checks that Bluetooth is on. 'ok' | 'denied' (permission refused) | 'off'.
+   */
+  prepare: () => Promise<'ok' | 'denied' | 'off'>;
   invite: (deviceId: string) => void;
   accept: (deviceId: string) => void;
   unpair: (deviceId: string) => void;
@@ -133,6 +138,17 @@ export function BluetoothProvider({ children }: { children: ReactNode }) {
       log('🔌 Bluetooth sync stopped');
     }
   }, [log]);
+
+  const prepare = useCallback(async (): Promise<'ok' | 'denied' | 'off'> => {
+    if (!(await BluetoothSync.ensurePermissions())) return 'denied';
+    const manager = managerRef.current;
+    if (!manager) return 'off';
+    // Without the permission the adapter state could not be read before; read it now
+    const state = await manager.state().catch(() => null);
+    const on = state === State.PoweredOn;
+    setAdapterOn(on);
+    return on ? 'ok' : 'off';
+  }, []);
 
   // Bluetooth switched off while running: tear the service down
   useEffect(() => {
@@ -240,9 +256,10 @@ export function BluetoothProvider({ children }: { children: ReactNode }) {
       setGossipStatus,
       start,
       stop,
+      prepare,
       ...stable,
     }),
-    [available, adapterOn, ble, starting, peers, gossipStatus, start, stop, stable],
+    [available, adapterOn, ble, starting, peers, gossipStatus, start, stop, prepare, stable],
   );
 
   return <BluetoothContext.Provider value={value}>{children}</BluetoothContext.Provider>;

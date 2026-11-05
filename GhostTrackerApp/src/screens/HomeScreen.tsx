@@ -266,7 +266,9 @@ export default function HomeScreen({ onStartRun }: { onStartRun: () => void }) {
 
       {/* 4. NPI trend */}
       <View style={styles.card}>
-        <Text style={styles.sectionLabel}>NPI TREND · LAST {Math.max(trend.length, 1)} SCORED RUNS</Text>
+        <Text style={styles.sectionLabel}>
+          {trend.length >= 2 ? `NPI TREND · LAST ${trend.length} SCORED RUNS` : 'NPI TREND'}
+        </Text>
         {trend.length >= 2 ? (
           <NpiTrendChart points={trend} />
         ) : (

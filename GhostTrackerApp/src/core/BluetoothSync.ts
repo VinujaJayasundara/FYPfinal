@@ -725,7 +725,18 @@ export class BluetoothSync {
   }
 
   private async requestPermissions(): Promise<void> {
-    if (Platform.OS !== 'android') return;
+    if (!(await BluetoothSync.ensurePermissions())) {
+      throw new Error('Bluetooth permission denied (Nearby devices)');
+    }
+  }
+
+  /**
+   * Ask for the Bluetooth runtime permissions (Android 12+: Nearby devices;
+   * older: location). Shows the system dialog only for missing ones.
+   * Returns true when everything needed is granted.
+   */
+  static async ensurePermissions(): Promise<boolean> {
+    if (Platform.OS !== 'android') return true;
     const sdk = typeof Platform.Version === 'number' ? Platform.Version : parseInt(String(Platform.Version), 10);
     const wanted =
       sdk >= 31
@@ -736,9 +747,6 @@ export class BluetoothSync {
           ]
         : [PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
     const result = await PermissionsAndroid.requestMultiple(wanted);
-    const denied = wanted.filter(p => result[p] !== PermissionsAndroid.RESULTS.GRANTED);
-    if (denied.length > 0) {
-      throw new Error(`Bluetooth permission denied: ${denied.map(p => p.split('.').pop()).join(', ')}`);
-    }
+    return wanted.every(p => result[p] === PermissionsAndroid.RESULTS.GRANTED);
   }
 }

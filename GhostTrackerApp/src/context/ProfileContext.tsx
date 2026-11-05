@@ -4,7 +4,7 @@
  * Stores the current user's name and physical profile data.
  * Used by UserBadge (display) and ProfileSetupScreen (edit).
  * Persists to SQLite via the database layer.
- * Defaults to "Vinuja" to match existing mock data.
+ * New installs start as "Runner" until the user sets a name.
  */
 
 import React, {
@@ -56,7 +56,7 @@ interface ProfileContextValue {
 // ── Default profile ───────────────────────────────────────
 
 const DEFAULT_PROFILE: UserProfile = {
-  name: 'Vinuja',
+  name: 'Runner',
   age: 22,
   weightKg: 68,
   heightCm: 175,

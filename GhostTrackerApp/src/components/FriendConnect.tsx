@@ -1,14 +1,16 @@
 /**
  * "Connect with a friend" — Run screen entry point for Bluetooth sync.
  *
- * Shown while the phone's Bluetooth is on. Opening it starts the Bluetooth
+ * Always shown (on builds with Bluetooth). Tapping it first asks for the
+ * Nearby-devices permission and checks Bluetooth is on (offering the
+ * Bluetooth settings if not). Opening it then starts the Bluetooth
  * service and lists nearby runners by name. Tapping Invite sends an
  * invitation; the friend sees an Accept / Decline dialog. Leaderboards sync
  * only after both have agreed.
  */
 
 import React, { useState } from 'react';
-import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useBluetooth } from '../context/BluetoothContext';
 import { useRace, RACE_COLOR, RACE_SYMBOL } from '../context/RaceContext';
 import { RaceDistancePicker } from './RaceUI';
@@ -29,7 +31,7 @@ export function FriendConnectButton() {
   const bt = useBluetooth();
   const [open, setOpen] = useState(false);
 
-  if (!bt.available || bt.adapterOn !== true) return null;
+  if (!bt.available) return null;
 
   const paired = bt.peers.filter(p => p.pairing === 'paired');
   const label =
@@ -38,6 +40,31 @@ export function FriendConnectButton() {
       : '👥 CONNECT WITH A FRIEND';
 
   const openPanel = async () => {
+    const ready = await bt.prepare();
+    if (ready === 'denied') {
+      Alert.alert(
+        'Allow Nearby devices',
+        'To find and connect with a friend, allow the "Nearby devices" (Bluetooth) permission for Ghost Tracker. No location is shared.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open settings', onPress: () => Linking.openSettings() },
+        ],
+      );
+      return;
+    }
+    if (ready === 'off') {
+      Alert.alert('Turn on Bluetooth', 'Bluetooth is off. Turn it on to connect with a friend.', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Bluetooth settings',
+          onPress: () =>
+            Platform.OS === 'android'
+              ? Linking.sendIntent('android.settings.BLUETOOTH_SETTINGS').catch(() => Linking.openSettings())
+              : Linking.openSettings(),
+        },
+      ]);
+      return;
+    }
     setOpen(true);
     if (!bt.running) await bt.start();
   };
@@ -52,7 +79,11 @@ export function FriendConnectButton() {
         <Text style={[styles.buttonText, paired.length > 0 && { color: C.accent }]} numberOfLines={1}>
           {label}
         </Text>
-        {paired.length > 0 && <Text style={styles.buttonSub}>{bt.gossipStatus}</Text>}
+        {paired.length > 0 ? (
+          <Text style={styles.buttonSub}>{bt.gossipStatus}</Text>
+        ) : bt.adapterOn !== true ? (
+          <Text style={styles.buttonSub}>Bluetooth is off · tap to turn on</Text>
+        ) : null}
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
