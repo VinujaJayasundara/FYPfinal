@@ -20,9 +20,9 @@ import { formatTime } from '../core/algorithms';
 
 // ── Design Tokens ─────────────────────────────────────────
 const C = {
-  accent: '#00FF87',
-  accentDim: '#00FF8718',
-  surface: '#1C1C1E',
+  accent: '#C6F432',
+  accentDim: '#C6F43218',
+  surface: '#1C1C1F',
   textPrimary: '#FFFFFF',
   textSecondary: '#8E8E93',
   red: '#FF3B30',
@@ -155,24 +155,24 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
     color: C.accent,
     letterSpacing: 0.5,
   },
   sep: {
     width: 1,
     height: 14,
-    backgroundColor: '#38383A',
+    backgroundColor: '#2E2E33',
   },
   stat: {
     fontSize: 13,
     fontWeight: '600',
     color: C.textPrimary,
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
   },
   arrow: {
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
     color: C.accent,
     marginLeft: 2,
   },

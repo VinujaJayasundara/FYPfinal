@@ -32,13 +32,13 @@ import type { RunnerProfile as NPIProfile, RunContext } from '../core/npiEngine'
 
 // ── Design Tokens ─────────────────────────────────────────
 const C = {
-  bg: '#000000',
-  surface: '#1C1C1E',
-  surfaceElevated: '#2C2C2E',
-  separator: '#38383A',
-  accent: '#00FF87',
-  accentDim: '#00FF8718',
-  accentGlow: '#00FF8730',
+  bg: '#0E0E10',
+  surface: '#1C1C1F',
+  surfaceElevated: '#2A2A2E',
+  separator: '#2E2E33',
+  accent: '#C6F432',
+  accentDim: '#C6F43218',
+  accentGlow: '#C6F43230',
   teal: '#00D4AA',
   red: '#FF3B30',
   amber: '#FF9F0A',
@@ -53,6 +53,8 @@ const C = {
 interface ProfileSetupScreenProps {
   onSave: (name: string, age: number, weightKg: number, heightCm: number, gender: 'M' | 'F') => void;
   onBack?: () => void;
+  /** Long-press the version line to open Diagnostics (hidden debug screen). */
+  onOpenDiagnostics?: () => void;
   /** Name to start with when no profile has been saved yet. */
   initialName?: string;
   existingProfile?: {
@@ -150,7 +152,7 @@ function FormField({
   );
 }
 
-export default function ProfileSetupScreen({ onSave, onBack, existingProfile, initialName }: ProfileSetupScreenProps) {
+export default function ProfileSetupScreen({ onSave, onBack, existingProfile, initialName, onOpenDiagnostics }: ProfileSetupScreenProps) {
   const { profile, setAvatar } = useProfile();
   const [name, setName] = useState(existingProfile?.name ?? initialName ?? '');
   const [age, setAge] = useState(existingProfile?.age?.toString() ?? '');
@@ -556,6 +558,13 @@ export default function ProfileSetupScreen({ onSave, onBack, existingProfile, in
             <Text style={styles.validationHint}>Check the highlighted fields</Text>
           )}
 
+          <Text
+            style={styles.versionLine}
+            onLongPress={onOpenDiagnostics}
+            suppressHighlighting
+          >
+            EquiStride · Ghost Tracker v1.0.0
+          </Text>
           <View style={{ height: 40 }} />
         </Animated.View>
       </ScrollView>
@@ -568,6 +577,7 @@ export default function ProfileSetupScreen({ onSave, onBack, existingProfile, in
 // ═══════════════════════════════════════════════════════════
 
 const styles = StyleSheet.create({
+  versionLine: { fontFamily: 'Urbanist_400Regular', color: '#5C5C63', fontSize: 12, textAlign: 'center', marginTop: 24 },
   notSavedNote: {
     backgroundColor: '#FF9F0A18',
     borderColor: '#FF9F0A60',
@@ -576,11 +586,11 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 12,
   },
-  notSavedText: { color: '#FF9F0A', fontSize: 13, lineHeight: 18 },
+  notSavedText: { fontFamily: 'Urbanist_400Regular', color: '#FF9F0A', fontSize: 13, lineHeight: 18 },
   // ── Form ─────────────────────────────────────────────
   field: { marginTop: 14 },
   fieldPair: { flexDirection: 'row', gap: 12 },
-  fieldLabelTop: { color: C.textSecondary, fontSize: 12, fontWeight: '600', letterSpacing: 0.4, marginBottom: 6 },
+  fieldLabelTop: { color: C.textSecondary, fontSize: 12, fontFamily: 'Urbanist_600SemiBold', letterSpacing: 0.4, marginBottom: 6 },
   inputBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -593,14 +603,14 @@ const styles = StyleSheet.create({
   },
   inputBoxFocused: { borderColor: C.accent },
   inputBoxError: { borderColor: C.red },
-  inputText: { flex: 1, color: C.textPrimary, fontSize: 17, fontWeight: '600', paddingVertical: 12 },
-  inputUnit: { color: C.textTertiary, fontSize: 14, fontWeight: '600', marginLeft: 8 },
-  fieldHelper: { color: C.textTertiary, fontSize: 12, marginTop: 6 },
-  fieldError: { color: C.red, fontSize: 12, fontWeight: '600', marginTop: 6 },
+  inputText: { flex: 1, color: C.textPrimary, fontSize: 17, fontFamily: 'Urbanist_600SemiBold', paddingVertical: 12 },
+  inputUnit: { color: C.textTertiary, fontSize: 14, fontFamily: 'Urbanist_600SemiBold', marginLeft: 8 },
+  fieldHelper: { fontFamily: 'Urbanist_400Regular', color: C.textTertiary, fontSize: 12, marginTop: 6 },
+  fieldError: { color: C.red, fontSize: 12, fontFamily: 'Urbanist_600SemiBold', marginTop: 6 },
   segmented: { flexDirection: 'row', backgroundColor: C.surfaceElevated, borderRadius: 12, padding: 4 },
   segment: { flex: 1, paddingVertical: 11, borderRadius: 9, alignItems: 'center' },
   segmentActive: { backgroundColor: C.accent },
-  segmentText: { color: C.textSecondary, fontSize: 15, fontWeight: '700' },
+  segmentText: { color: C.textSecondary, fontSize: 15, fontFamily: 'Urbanist_700Bold' },
   segmentTextActive: { color: '#000' },
   cameraBadge: {
     position: 'absolute',
@@ -616,7 +626,7 @@ const styles = StyleSheet.create({
     borderColor: C.bg,
   },
   cameraIcon: { fontSize: 14 },
-  changePhoto: { color: C.accent, fontSize: 13, fontWeight: '600', marginTop: 8, marginBottom: 4 },
+  changePhoto: { color: C.accent, fontSize: 13, fontFamily: 'Urbanist_600SemiBold', marginTop: 8, marginBottom: 4 },
   container: { flex: 1, backgroundColor: C.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 4 },
@@ -631,14 +641,14 @@ const styles = StyleSheet.create({
   },
   backChevron: {
     fontSize: 28,
-    fontWeight: '300',
+    fontFamily: 'Urbanist_400Regular',
     color: C.accent,
     lineHeight: 28,
     marginTop: -2,
   },
   backText: {
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: 'Urbanist_500Medium',
     color: C.accent,
   },
 
@@ -678,7 +688,7 @@ const styles = StyleSheet.create({
   },
   heroAvatarText: {
     fontSize: 28,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
     color: C.accent,
     letterSpacing: 1,
   },
@@ -695,11 +705,12 @@ const styles = StyleSheet.create({
   },
   heroName: {
     fontSize: 24,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
     color: C.textPrimary,
     letterSpacing: 0.5,
   },
   heroSubtitle: {
+    fontFamily: 'Urbanist_400Regular',
     fontSize: 13,
     color: C.textSecondary,
     marginTop: 4,
@@ -710,7 +721,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 20,
     backgroundColor: C.surface,
-    borderRadius: 16,
+    borderRadius: 24,
     paddingVertical: 14,
     paddingHorizontal: 24,
     gap: 0,
@@ -723,12 +734,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: C.textPrimary,
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
   },
   heroStatLabel: {
     fontSize: 9,
     color: C.textTertiary,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     letterSpacing: 1,
     marginTop: 3,
   },
@@ -760,15 +771,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sectionIcon: {
-    fontSize: 18,
+        fontSize: 18,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
     color: C.textPrimary,
     letterSpacing: 0.3,
   },
   sectionDesc: {
+    fontFamily: 'Urbanist_400Regular',
     fontSize: 11,
     color: C.textTertiary,
     marginTop: 1,
@@ -789,16 +801,17 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   fieldEmoji: {
-    fontSize: 18,
+        fontSize: 18,
     width: 28,
     textAlign: 'center',
   },
   fieldLabel: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     color: C.textPrimary,
   },
   fieldUnit: {
+    fontFamily: 'Urbanist_400Regular',
     fontSize: 11,
     color: C.textTertiary,
     marginTop: 1,
@@ -813,7 +826,7 @@ const styles = StyleSheet.create({
     color: C.textPrimary,
     textAlign: 'right',
     minWidth: 90,
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
     borderWidth: 1,
     borderColor: 'transparent',
   },
@@ -837,7 +850,7 @@ const styles = StyleSheet.create({
   },
   genderText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     color: C.textSecondary,
   },
   genderTextActive: {
@@ -861,7 +874,7 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     fontSize: 10,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     color: C.textTertiary,
     letterSpacing: 1.5,
     marginBottom: 6,
@@ -869,7 +882,7 @@ const styles = StyleSheet.create({
   metricValue: {
     fontSize: 36,
     fontWeight: '200',
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
   },
   metricBadge: {
     marginTop: 8,
@@ -880,10 +893,11 @@ const styles = StyleSheet.create({
   },
   metricBadgeText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
     letterSpacing: 0.5,
   },
   metricContext: {
+    fontFamily: 'Urbanist_400Regular',
     fontSize: 11,
     color: C.textTertiary,
     marginTop: 8,
@@ -910,11 +924,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: C.purple,
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
     textAlign: 'center',
     letterSpacing: 0.5,
   },
   modelExplain: {
+    fontFamily: 'Urbanist_400Regular',
     fontSize: 12,
     color: C.textSecondary,
     lineHeight: 18,
@@ -927,7 +942,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 4,
     backgroundColor: C.surfaceElevated,
-    borderRadius: 14,
+    borderRadius: 20,
     padding: 12,
   },
   npiScaleItem: {
@@ -938,12 +953,12 @@ const styles = StyleSheet.create({
   npiScaleValue: {
     fontSize: 9,
     fontWeight: '700',
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
   },
   npiScaleDesc: {
     fontSize: 7,
     color: C.textTertiary,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
   },
 
   // Model Quality
@@ -955,6 +970,7 @@ const styles = StyleSheet.create({
     borderBottomColor: C.separator,
   },
   qualityMetric: {
+    fontFamily: 'Urbanist_400Regular',
     fontSize: 14,
     color: C.textSecondary,
   },
@@ -962,7 +978,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: C.textPrimary,
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
   },
 
   // Factor Coefficients
@@ -976,7 +992,7 @@ const styles = StyleSheet.create({
   },
   factorName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     color: C.textPrimary,
   },
   factorEffectBadge: {
@@ -988,14 +1004,14 @@ const styles = StyleSheet.create({
   factorEffect: {
     fontSize: 11,
     color: C.teal,
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
     fontWeight: '600',
   },
 
   // Save Button
   saveButton: {
     backgroundColor: C.accent,
-    borderRadius: 16,
+    borderRadius: 24,
     paddingVertical: 18,
     alignItems: 'center',
     marginTop: 8,
@@ -1012,14 +1028,15 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#000000',
+    fontFamily: 'Urbanist_700Bold',
+    color: '#0E0E10',
     letterSpacing: 1.5,
   },
   saveButtonTextDisabled: {
     color: C.textTertiary,
   },
   validationHint: {
+    fontFamily: 'Urbanist_400Regular',
     textAlign: 'center',
     fontSize: 12,
     color: C.textTertiary,

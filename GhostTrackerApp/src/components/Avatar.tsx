@@ -38,6 +38,6 @@ export default function Avatar({
 }
 
 const styles = StyleSheet.create({
-  base: { backgroundColor: '#00FF8718', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  initials: { color: '#00FF87', fontWeight: '800', letterSpacing: 0.5 },
+  base: { backgroundColor: '#C6F43218', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  initials: { color: '#C6F432', fontWeight: '800', letterSpacing: 0.5 },
 });

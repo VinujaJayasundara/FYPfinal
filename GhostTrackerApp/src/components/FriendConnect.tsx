@@ -17,10 +17,10 @@ import { RaceDistancePicker } from './RaceUI';
 import type { BlePeer } from '../core/BluetoothSync';
 
 const C = {
-  surface: '#1C1C1E',
-  elevated: '#2C2C2E',
-  separator: '#38383A',
-  accent: '#00FF87',
+  surface: '#1C1C1F',
+  elevated: '#2A2A2E',
+  separator: '#2E2E33',
+  accent: '#C6F432',
   amber: '#FF9F0A',
   blue: '#0A84FF',
   red: '#FF3B30',
@@ -37,7 +37,7 @@ export function FriendConnectButton() {
   const label =
     paired.length > 0
       ? `👥 Connected with ${paired.map(p => p.alias ?? 'friend').join(', ')}`
-      : '👥 CONNECT WITH A FRIEND';
+      : '👥  Connect with a friend · sync or race';
 
   const openPanel = async () => {
     const ready = await bt.prepare();
@@ -208,37 +208,36 @@ function PeerRow({ peer, first, onRaceSet }: { peer: BlePeer; first: boolean; on
 
 const styles = StyleSheet.create({
   button: {
-    marginTop: 14,
     alignSelf: 'stretch',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: C.separator,
-    backgroundColor: '#1C1C1ECC',
+    borderColor: 'rgba(191, 90, 242, 0.35)', // friend / race colour
+    backgroundColor: 'rgba(28, 28, 31, 0.86)',
     alignItems: 'center',
   },
-  buttonPaired: { borderColor: '#00FF8770' },
-  buttonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700', letterSpacing: 1 },
-  buttonSub: { color: C.muted, fontSize: 12, marginTop: 4 },
-  overlay: { flex: 1, backgroundColor: '#000000AA', justifyContent: 'flex-end' },
+  buttonPaired: { borderColor: '#BF5AF2', backgroundColor: 'rgba(191, 90, 242, 0.16)' },
+  buttonText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Urbanist_700Bold', letterSpacing: 0.5 },
+  buttonSub: { fontFamily: 'Urbanist_400Regular', color: C.muted, fontSize: 12, marginTop: 4 },
+  overlay: { flex: 1, backgroundColor: '#0E0E10AA', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: C.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 20,
     paddingBottom: 32,
   },
-  title: { color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginBottom: 6 },
-  sub: { color: C.muted, fontSize: 13, lineHeight: 18, marginBottom: 14 },
+  title: { color: '#FFFFFF', fontSize: 20, fontFamily: 'Urbanist_800ExtraBold', marginBottom: 6 },
+  sub: { fontFamily: 'Urbanist_400Regular', color: C.muted, fontSize: 13, lineHeight: 18, marginBottom: 14 },
   row: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   peer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
   peerBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.separator },
-  peerName: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  peerMeta: { color: C.muted, fontSize: 12, marginTop: 2 },
+  peerName: { color: '#FFFFFF', fontSize: 16, fontFamily: 'Urbanist_700Bold' },
+  peerMeta: { fontFamily: 'Urbanist_400Regular', color: C.muted, fontSize: 12, marginTop: 2 },
   action: { borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 },
   actionFilled: { backgroundColor: C.accent, borderColor: C.accent },
-  actionText: { fontSize: 13, fontWeight: '700' },
+  actionText: { fontSize: 13, fontFamily: 'Urbanist_700Bold' },
   footer: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 18 },
   footerBtn: {
     borderWidth: 1,

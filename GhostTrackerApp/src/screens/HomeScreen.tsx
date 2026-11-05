@@ -1,8 +1,9 @@
 /**
- * Home — the "dual-metric" dashboard (thesis Table A.1): NPI and RII side
- * by side, the last run with its route, this week, the NPI trend, a compact
- * totals line, friends, a big Start button, and the metric explainers folded
- * away. During the first 5 runs the scores are replaced by baseline progress.
+ * Home — the dual-metric dashboard (thesis Table A.1), revamped:
+ *   greeting · week strip (days run in lime) · "Your progress" grid (last
+ *   run map with time/pace, NPI and RII tiles) · recent runs · friends ·
+ *   NPI trend · explainers. During the first 5 runs the score tiles show the
+ *   baseline progress instead (5-run calibration).
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -22,31 +23,19 @@ import {
   isPeerRun,
   lastRun as pickLastRun,
   npiTrend,
-  weekStats,
+  weekStart,
   type RunHistoryItem,
 } from '../../../GhostTracker/src/core/history/runHistory';
-import {
-  CALIBRATION_RUNS,
-  formatVsBaseline,
-  relativeToBaseline,
-} from '../../../GhostTracker/src/core/fairness/calibration';
+import { CALIBRATION_RUNS, formatVsBaseline, relativeToBaseline } from '../../../GhostTracker/src/core/fairness/calibration';
 import { formatNPI, getNPIStatus } from '../core/npiEngine';
 import { calculateRII, getRIIStatus } from '../core/algorithms';
 import { FinishedMap } from '../components/RunMap';
-import { BaselineProgress } from '../components/RunScores';
+import Avatar from '../components/Avatar';
 import { RunDetail } from './HistoryScreen';
-import { PEER_COLOR, SOLO_COLOR, runColor } from '../theme/runColors';
+import { Card, IconCircle, SectionTitle, StatTile, T } from '../components/ui';
+import { colors, fonts, radius, runColor, space } from '../theme/tokens';
 
-const C = {
-  surface: '#1C1C1E',
-  elevated: '#2C2C2E',
-  separator: '#38383A',
-  text: '#FFFFFF',
-  dim: '#8E8E93',
-  faint: '#636366',
-  amber: '#FF9F0A',
-  blue: '#0A84FF',
-};
+// ── formatting ─────────────────────────────────────────────
 
 function fmtPace(s: number | null | undefined): string {
   if (!s || !isFinite(s) || s <= 0) return '--:--';
@@ -62,19 +51,87 @@ function fmtDuration(s: number): string {
 function fmtWhen(ms: number): string {
   const d = new Date(ms);
   const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
-  const yest = new Date(today.getTime() - 86_400_000).toDateString() === d.toDateString();
   const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  if (sameDay) return `Today · ${time}`;
-  if (yest) return `Yesterday · ${time}`;
+  if (d.toDateString() === today.toDateString()) return `Today · ${time}`;
+  if (new Date(today.getTime() - 86_400_000).toDateString() === d.toDateString()) return `Yesterday · ${time}`;
   return `${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} · ${time}`;
 }
 
-// ── NPI trend (small bar chart around zero) ────────────────
+// ── week strip ─────────────────────────────────────────────
 
-function NpiTrendChart({ points }: { points: { startTime: number; npi: number }[] }) {
+function WeekStrip({ runs }: { runs: RunHistoryItem[] }) {
+  const start = weekStart(Date.now());
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const dayStart = start + i * 86_400_000;
+    const ran = runs.some(r => r.runNo !== null && r.startTime >= dayStart && r.startTime < dayStart + 86_400_000);
+    return { label: 'MTWTFSS'[i], date: new Date(dayStart).getDate(), ran, today: i === todayIdx };
+  });
+  return (
+    <View style={styles.week}>
+      {days.map((d, i) => (
+        <View key={i} style={[styles.day, d.ran && styles.dayRan, d.today && !d.ran && styles.dayToday]}>
+          <Text style={[styles.dayLabel, d.ran && { color: colors.onAccent }]}>{d.label}</Text>
+          <Text style={[styles.dayDate, d.ran && { color: colors.onAccent }]}>{d.date}</Text>
+          <Text style={styles.dayIcon}>{d.ran ? '👟' : ' '}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ── last-run map tile ──────────────────────────────────────
+
+function LastRunTile({ run, onOpen }: { run: RunHistoryItem; onOpen: () => void }) {
+  const mapRef = useRef<any>(null);
+  const [route, setRoute] = useState<{ latitude: number; longitude: number }[] | null>(null);
+  const color = runColor(isPeerRun(run));
+  useEffect(() => {
+    getSessionTelemetry(run.sessionId)
+      .then(pts => setRoute(pts.map(p => ({ latitude: p.latitude, longitude: p.longitude }))))
+      .catch(() => setRoute([]));
+  }, [run.sessionId]);
+  const region =
+    route && route.length > 0
+      ? { latitude: route[0].latitude, longitude: route[0].longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 }
+      : { latitude: 6.8448, longitude: 79.8999, latitudeDelta: 0.01, longitudeDelta: 0.01 };
+
+  return (
+    <TouchableOpacity style={styles.mapTile} onPress={onOpen} activeOpacity={0.9}>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        {route && route.length >= 2 ? (
+          <FinishedMap mapRef={mapRef} initialRegion={region} routeCoords={route} color={color} />
+        ) : (
+          <View style={styles.mapEmpty} />
+        )}
+      </View>
+      <View style={styles.bubble}>
+        <Text style={styles.bubbleText}>{(run.distanceM / 1000).toFixed(2)} Km</Text>
+      </View>
+      {run.peers.length > 0 && (
+        <View style={[styles.peerTag, { backgroundColor: colors.peer }]}>
+          <Text style={styles.peerTagText} numberOfLines={1}>🔗 {run.peers[0].alias}</Text>
+        </View>
+      )}
+      <View style={styles.mapStats}>
+        <View style={styles.glass}>
+          <T variant="caption">⏱ Time</T>
+          <Text style={styles.glassValue}>{fmtDuration(run.durationS)}</Text>
+        </View>
+        <View style={styles.glass}>
+          <T variant="caption">📍 Pace</T>
+          <Text style={styles.glassValue}>{fmtPace(run.paceSPerKm)}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// ── NPI trend ──────────────────────────────────────────────
+
+function NpiTrendChart({ points }: { points: { npi: number }[] }) {
   const maxAbs = Math.max(1, ...points.map(p => Math.abs(p.npi)));
-  const half = 36; // px above / below the zero line
+  const half = 34;
   return (
     <View>
       <View style={styles.trendChart}>
@@ -95,69 +152,17 @@ function NpiTrendChart({ points }: { points: { startTime: number; npi: number }[
         <View style={[styles.zeroLine, { top: half }]} />
       </View>
       <View style={styles.trendAxis}>
-        <Text style={styles.trendAxisText}>older</Text>
-        <Text style={styles.trendAxisText}>0 = as the model expects</Text>
-        <Text style={styles.trendAxisText}>latest</Text>
+        <T variant="caption">older</T>
+        <T variant="caption">0 = as the model expects</T>
+        <T variant="caption">latest</T>
       </View>
     </View>
   );
 }
 
-// ── Last run card ──────────────────────────────────────────
+// ── screen ─────────────────────────────────────────────────
 
-function LastRunCard({ run, onOpen }: { run: RunHistoryItem; onOpen: () => void }) {
-  const mapRef = useRef<any>(null);
-  const [route, setRoute] = useState<{ latitude: number; longitude: number }[] | null>(null);
-  const color = runColor(isPeerRun(run));
-  useEffect(() => {
-    getSessionTelemetry(run.sessionId)
-      .then(pts => setRoute(pts.map(p => ({ latitude: p.latitude, longitude: p.longitude }))))
-      .catch(() => setRoute([]));
-  }, [run.sessionId]);
-  const friend = run.peers[0];
-  const region = route && route.length > 0
-    ? { latitude: route[0].latitude, longitude: route[0].longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 }
-    : { latitude: 6.8448, longitude: 79.8999, latitudeDelta: 0.01, longitudeDelta: 0.01 };
-
-  return (
-    <TouchableOpacity style={[styles.card, { borderColor: color + '50', borderWidth: 1 }]} onPress={onOpen} activeOpacity={0.85}>
-      <View style={styles.cardHeadRow}>
-        <Text style={styles.sectionLabel}>LAST RUN · {fmtWhen(run.startTime).toUpperCase()}</Text>
-        <Text style={[styles.tag, { color }]} numberOfLines={1}>
-          {friend ? `🔗 ${friend.kind === 'race' ? 'vs ' : ''}${friend.alias}` : 'SOLO'}
-        </Text>
-      </View>
-      <View style={styles.lastRow}>
-        <View style={styles.miniMap} pointerEvents="none">
-          {route && route.length >= 2 ? (
-            <FinishedMap mapRef={mapRef} initialRegion={region} routeCoords={route} color={color} />
-          ) : (
-            <View style={styles.miniMapEmpty}>
-              <Text style={styles.faintText}>{route === null ? '' : 'no route'}</Text>
-            </View>
-          )}
-        </View>
-        <View style={{ flex: 1, justifyContent: 'center' }}>
-          <Text style={styles.lastBig}>{(run.distanceM / 1000).toFixed(2)} km</Text>
-          <Text style={styles.lastSub}>
-            {fmtDuration(run.durationS)} · {fmtPace(run.paceSPerKm)} /km
-          </Text>
-          {run.raceOutcome && (
-            <Text style={[styles.lastSub, { color: PEER_COLOR, fontWeight: '700' }]}>
-              {run.raceOutcome === 'win' ? 'Race won 🏆' : run.raceOutcome === 'loss' ? 'Race lost' : run.raceOutcome === 'tie' ? 'Race tied' : 'Race · no winner'}
-            </Text>
-          )}
-          {run.isPB && <Text style={[styles.lastSub, { color: SOLO_COLOR, fontWeight: '700' }]}>New PB</Text>}
-          <Text style={styles.linkText}>Open in history ›</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-// ── Screen ─────────────────────────────────────────────────
-
-export default function HomeScreen({ onStartRun }: { onStartRun: () => void }) {
+export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: () => void; onOpenProfile?: () => void }) {
   const { profile } = useProfile();
   const { dbVersion, calibration } = useRun();
   const [runs, setRuns] = useState<RunHistoryItem[]>([]);
@@ -182,153 +187,179 @@ export default function HomeScreen({ onStartRun }: { onStartRun: () => void }) {
     load();
   }, [load, dbVersion]);
 
-  const now = Date.now();
   const last = useMemo(() => pickLastRun(runs), [runs]);
-  const week = useMemo(() => weekStats(runs, now), [runs, now]);
+  const recent = useMemo(() => [...runs].sort((a, b) => b.startTime - a.startTime).slice(0, 3), [runs]);
   const trend = useMemo(() => npiTrend(runs, 10, CALIBRATION_RUNS), [runs]);
-  const totalDist = useMemo(() => runs.reduce((a, r) => a + r.distanceM, 0), [runs]);
-  const lastScored = useMemo(() => [...trend].pop() ?? null, [trend]);
-  const lastValid = useMemo(
-    () => [...runs].filter(r => r.paceSPerKm).sort((a, b) => b.startTime - a.startTime)[0] ?? null,
-    [runs],
-  );
+  const lastScored = trend.length ? trend[trend.length - 1] : null;
+  const prevScored = trend.length > 1 ? trend[trend.length - 2] : null;
+  const lastValid = useMemo(() => [...runs].filter(r => r.paceSPerKm).sort((a, b) => b.startTime - a.startTime)[0] ?? null, [runs]);
   const lastFriend = useMemo(() => [...peers].sort((a, b) => b.last_seen - a.last_seen)[0] ?? null, [peers]);
 
-  // Hero values (shown once calibrated)
   const npi = lastScored?.npi ?? null;
   const npiStatus = npi !== null ? getNPIStatus(npi) : null;
+  const npiChange = npi !== null && prevScored ? npi - prevScored.npi : null;
   const rii = pbPace && lastValid?.paceSPerKm ? calculateRII(pbPace, lastValid.paceSPerKm) : null;
   const riiStatus = rii !== null ? getRIIStatus(rii) : null;
   const vsBase = relativeToBaseline(calibration.baselinePace, lastValid?.paceSPerKm ?? null);
+  const left = calibration.needed - calibration.runs;
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <View style={{ paddingBottom: 24 }}>
-      <Text style={styles.greeting}>
-        {greeting}, {profile.name}
-      </Text>
-
-      {/* 1. Dual-metric hero (or baseline progress) */}
-      {calibration.calibrated ? (
-        <View style={styles.hero}>
-          <View style={styles.heroCell}>
-            <Text style={styles.heroLabel}>NPI</Text>
-            <Text style={[styles.heroValue, { color: npiStatus?.color ?? C.dim }]}>{npi !== null ? formatNPI(npi) : '—'}</Text>
-            <Text style={[styles.heroSub, { color: npiStatus?.color ?? C.faint }]}>{npiStatus?.label ?? 'no score yet'}</Text>
-            <Text style={styles.heroHint}>vs the model for you</Text>
-          </View>
-          <View style={styles.heroDivider} />
-          <View style={styles.heroCell}>
-            <Text style={styles.heroLabel}>RII</Text>
-            <Text style={[styles.heroValue, { color: riiStatus?.color ?? C.dim }]}>{rii !== null ? rii.toFixed(2) : '—'}</Text>
-            <Text style={styles.heroSub}>vs PB {fmtPace(pbPace)}/km</Text>
-            <Text style={[styles.heroHint, { color: vsBase !== null && vsBase >= 1 ? SOLO_COLOR : C.amber }]}>
-              {formatVsBaseline(vsBase)}
-            </Text>
-          </View>
+    <View style={{ paddingBottom: space.xxl }}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={{ flex: 1 }}>
+          <T variant="label">{greeting}, {profile.name}</T>
+          <T variant="hero">{runs.length === 0 ? 'Start your first run' : 'Ready for a run?'}</T>
         </View>
-      ) : (
-        <View style={[styles.card, { borderColor: C.amber + '60', borderWidth: 1 }]}>
-          <BaselineProgress recorded={calibration.runs} />
-        </View>
-      )}
+        <TouchableOpacity onPress={onOpenProfile} activeOpacity={0.8} accessibilityLabel="Open profile">
+          <Avatar name={profile.name} uri={profile.avatarUri} size={46} />
+        </TouchableOpacity>
+      </View>
 
-      {/* 2. Last run */}
-      {last ? (
-        <LastRunCard run={last} onOpen={() => setOpen(last)} />
-      ) : (
-        <View style={styles.card}>
-          <Text style={styles.sectionLabel}>LAST RUN</Text>
-          <Text style={styles.dimText}>No runs yet — your first run will appear here.</Text>
-        </View>
-      )}
+      <WeekStrip runs={runs} />
 
-      {/* 3. This week */}
-      <View style={styles.card}>
-        <Text style={styles.sectionLabel}>THIS WEEK</Text>
-        <View style={styles.weekRow}>
-          <View style={styles.weekCell}>
-            <Text style={styles.weekValue}>{week.runs}</Text>
-            <Text style={styles.weekLabel}>runs</Text>
-          </View>
-          <View style={styles.weekCell}>
-            <Text style={styles.weekValue}>{(week.distanceM / 1000).toFixed(1)}</Text>
-            <Text style={styles.weekLabel}>km</Text>
-          </View>
-          <View style={styles.weekCell}>
-            <Text style={styles.weekValue}>{fmtPace(week.bestPace)}</Text>
-            <Text style={styles.weekLabel}>best /km</Text>
-          </View>
+      {/* Your progress */}
+      <SectionTitle title="Your progress" />
+      <View style={styles.grid}>
+        <View style={{ flex: 1.15 }}>
+          {last ? (
+            <LastRunTile run={last} onOpen={() => setOpen(last)} />
+          ) : (
+            <Card style={[styles.mapTile, styles.centered]} onPress={onStartRun}>
+              <IconCircle light size={52}>
+                <Text style={{ fontSize: 24 }}>👟</Text>
+              </IconCircle>
+              <T variant="label" style={{ marginTop: space.md, textAlign: 'center' }}>Your last run will show here</T>
+            </Card>
+          )}
+        </View>
+        <View style={{ flex: 1, gap: space.md }}>
+          {calibration.calibrated ? (
+            <>
+              <StatTile
+                label="NPI"
+                value={npi !== null ? formatNPI(npi) : '—'}
+                valueColor={npiStatus?.color}
+                sub={
+                  npiChange !== null
+                    ? `${npiChange >= 0 ? '↑' : '↓'} ${Math.abs(npiChange).toFixed(2)} vs previous run`
+                    : npiStatus?.label ?? 'vs the model for you'
+                }
+                subColor={npiChange !== null ? (npiChange >= 0 ? colors.good : colors.bad) : undefined}
+              />
+              <StatTile
+                label="RII"
+                value={rii !== null ? rii.toFixed(2) : '—'}
+                valueColor={riiStatus?.color}
+                sub={formatVsBaseline(vsBase)}
+                subColor={vsBase !== null ? (vsBase >= 1 ? colors.good : colors.bad) : undefined}
+              />
+            </>
+          ) : (
+            <>
+              <StatTile
+                label="Baseline"
+                value={`${calibration.runs}/${calibration.needed}`}
+                valueColor={colors.accent}
+                sub={`${left} more run${left === 1 ? '' : 's'} to unlock NPI`}
+              />
+              <StatTile label="Best pace" value={fmtPace(pbPace)} unit="/km" sub={`${runs.length} run${runs.length === 1 ? '' : 's'} so far`} />
+            </>
+          )}
         </View>
       </View>
 
-      {/* 4. NPI trend */}
-      <View style={styles.card}>
-        <Text style={styles.sectionLabel}>
-          {trend.length >= 2 ? `NPI TREND · LAST ${trend.length} SCORED RUNS` : 'NPI TREND'}
-        </Text>
+      {/* Recent runs */}
+      {recent.length > 0 && (
+        <>
+          <SectionTitle title="Recent runs" />
+          {recent.map(r => {
+            const peer = isPeerRun(r);
+            return (
+              <Card key={r.sessionId} onPress={() => setOpen(r)} style={styles.runRow}>
+                <IconCircle light size={48}>
+                  <Text style={{ fontSize: 20 }}>{peer ? '🔗' : '👟'}</Text>
+                </IconCircle>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.runTitle}>
+                    {(r.distanceM / 1000).toFixed(2)}
+                    <Text style={styles.runUnit}> km</Text>
+                    {'  '}
+                    {fmtDuration(r.durationS)}
+                  </Text>
+                  <T variant="label" numberOfLines={1}>
+                    {fmtWhen(r.startTime)} · {peer ? (r.raceOutcome ? `race vs ${r.peers[0].alias}` : `with ${r.peers[0].alias}`) : 'solo'}
+                  </T>
+                </View>
+                <IconCircle size={38}>
+                  <Text style={{ color: runColor(peer), fontSize: 18, fontFamily: fonts.bold }}>›</Text>
+                </IconCircle>
+              </Card>
+            );
+          })}
+        </>
+      )}
+
+      {/* Friends */}
+      {(races && races.races > 0) || lastFriend ? (
+        <>
+          <SectionTitle title="Friends" />
+          <Card style={{ borderWidth: 1, borderColor: colors.peerDim }}>
+            {races && races.races > 0 && (
+              <Text style={styles.friendLine}>
+                🔗 {races.races} race{races.races === 1 ? '' : 's'} · {races.wins} win{races.wins === 1 ? '' : 's'} · {races.losses} loss
+                {races.losses === 1 ? '' : 'es'}
+              </Text>
+            )}
+            {lastFriend && (
+              <T variant="label">
+                Last synced with {lastFriend.alias ?? 'a friend'} · {fmtWhen(lastFriend.last_seen)}
+              </T>
+            )}
+          </Card>
+        </>
+      ) : null}
+
+      {/* NPI trend */}
+      <SectionTitle title="NPI trend" />
+      <Card>
         {trend.length >= 2 ? (
           <NpiTrendChart points={trend} />
         ) : (
-          <Text style={styles.dimText}>
+          <T variant="label">
             {calibration.calibrated
               ? 'Your NPI trend appears after two scored runs.'
               : `Scores start after run ${CALIBRATION_RUNS}; the trend builds from there.`}
-          </Text>
+          </T>
         )}
-      </View>
+      </Card>
 
-      {/* 5. Totals, one line */}
-      <Text style={styles.totals}>
-        PB {fmtPace(pbPace)}/km · {runs.length} run{runs.length === 1 ? '' : 's'} · {(totalDist / 1000).toFixed(1)} km total
-      </Text>
-
-      {/* 8. Friends */}
-      {(races && races.races > 0) || lastFriend ? (
-        <View style={[styles.card, { borderColor: PEER_COLOR + '50', borderWidth: 1 }]}>
-          <Text style={[styles.sectionLabel, { color: PEER_COLOR }]}>🔗 FRIENDS</Text>
-          {races && races.races > 0 && (
-            <Text style={styles.friendLine}>
-              {races.races} race{races.races === 1 ? '' : 's'} · {races.wins} win{races.wins === 1 ? '' : 's'} · {races.losses} loss
-              {races.losses === 1 ? '' : 'es'}
-            </Text>
-          )}
-          {lastFriend && (
-            <Text style={styles.dimText}>
-              Last synced with {lastFriend.alias ?? 'a friend'} · {fmtWhen(lastFriend.last_seen)}
-            </Text>
-          )}
-        </View>
-      ) : null}
-
-      {/* 6. Start */}
-      <TouchableOpacity style={styles.startBtn} onPress={onStartRun} activeOpacity={0.85}>
-        <Text style={styles.startText}>▶  START RUN</Text>
-      </TouchableOpacity>
-
-      {/* 7. Explainers, folded */}
+      {/* Explainers */}
       <TouchableOpacity onPress={() => setShowExplain(v => !v)} style={styles.explainToggle} activeOpacity={0.7}>
-        <Text style={styles.explainToggleText}>ⓘ What do NPI and RII mean? {showExplain ? '▲' : '▼'}</Text>
+        <T variant="label" style={{ fontFamily: fonts.semibold }}>
+          ⓘ What do NPI and RII mean? {showExplain ? '▲' : '▼'}
+        </T>
       </TouchableOpacity>
       {showExplain && (
-        <View style={styles.card}>
-          <Text style={styles.explainTitle}>NPI — fair score between people</Text>
-          <Text style={styles.dimText}>
+        <Card>
+          <T variant="body" style={styles.explainTitle}>NPI — fair score between people</T>
+          <T variant="label">
             (Expected pace − your pace) / σ. The expected pace comes from the model for your age, BMI, sex, altitude and
             distance. +1.0 means one standard deviation faster than expected for you.
-          </Text>
-          <Text style={[styles.explainTitle, { marginTop: 12 }]}>RII — your own progress</Text>
-          <Text style={styles.dimText}>PB pace / your pace. Above 1.00 = faster than your personal best.</Text>
-          <Text style={[styles.explainTitle, { marginTop: 12 }]}>Baseline</Text>
-          <Text style={styles.dimText}>
+          </T>
+          <T variant="body" style={[styles.explainTitle, { marginTop: space.md }]}>RII — your own progress</T>
+          <T variant="label">PB pace / your pace. Above 1.00 = faster than your personal best.</T>
+          <T variant="body" style={[styles.explainTitle, { marginTop: space.md }]}>Baseline</T>
+          <T variant="label">
             Your first {CALIBRATION_RUNS} runs set a baseline; scores are shown from run {CALIBRATION_RUNS}, with your pace
             compared to the baseline.
-          </Text>
-          <Text style={[styles.explainTitle, { marginTop: 12 }]}>Privacy</Text>
-          <Text style={styles.dimText}>Runs and routes stay on this phone. Friends only receive scores and times, never locations.</Text>
-        </View>
+          </T>
+          <T variant="body" style={[styles.explainTitle, { marginTop: space.md }]}>Privacy</T>
+          <T variant="label">Runs and routes stay on this phone. Friends only receive scores and times, never locations.</T>
+        </Card>
       )}
 
       <Modal visible={open !== null} animationType="slide" onRequestClose={() => setOpen(null)}>
@@ -339,48 +370,57 @@ export default function HomeScreen({ onStartRun }: { onStartRun: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  greeting: { color: C.text, fontSize: 24, fontWeight: '700', marginBottom: 12 },
-  card: { backgroundColor: C.surface, borderRadius: 16, padding: 14, marginBottom: 12 },
-  sectionLabel: { color: C.dim, fontSize: 11, fontWeight: '800', letterSpacing: 1.4, marginBottom: 8 },
-  dimText: { color: C.dim, fontSize: 13, lineHeight: 19 },
-  faintText: { color: C.faint, fontSize: 12 },
-  // hero
-  hero: { flexDirection: 'row', backgroundColor: C.surface, borderRadius: 18, paddingVertical: 16, marginBottom: 12 },
-  heroCell: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
-  heroDivider: { width: StyleSheet.hairlineWidth, backgroundColor: C.separator },
-  heroLabel: { color: C.dim, fontSize: 12, fontWeight: '800', letterSpacing: 2 },
-  heroValue: { fontSize: 42, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 2 },
-  heroSub: { color: C.dim, fontSize: 13, fontWeight: '600' },
-  heroHint: { color: C.faint, fontSize: 12, marginTop: 2 },
-  // last run
-  cardHeadRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
-  tag: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5, maxWidth: '45%' },
-  lastRow: { flexDirection: 'row', gap: 12 },
-  miniMap: { width: 130, height: 110, borderRadius: 12, overflow: 'hidden', backgroundColor: '#0a0e1a' },
-  miniMapEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  lastBig: { color: C.text, fontSize: 26, fontWeight: '800' },
-  lastSub: { color: C.text, fontSize: 14, marginTop: 2 },
-  linkText: { color: C.dim, fontSize: 12, marginTop: 6 },
-  // week
-  weekRow: { flexDirection: 'row' },
-  weekCell: { flex: 1, alignItems: 'center' },
-  weekValue: { color: C.text, fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  weekLabel: { color: C.dim, fontSize: 12 },
-  // trend
-  trendChart: { flexDirection: 'row', gap: 8, position: 'relative', paddingVertical: 2, justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.xl, marginBottom: space.lg },
+  week: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
+  day: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dayRan: { backgroundColor: colors.accent, borderColor: colors.accent },
+  dayToday: { borderColor: colors.accent },
+  dayLabel: { fontFamily: fonts.semibold, fontSize: 11, color: colors.textDim },
+  dayDate: { fontFamily: fonts.semibold, fontSize: 15, color: colors.text, marginTop: 2 },
+  dayIcon: { fontSize: 12, marginTop: 2, height: 16 },
+  grid: { flexDirection: 'row', gap: space.md },
+  mapTile: { height: 300, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.surface },
+  mapEmpty: { flex: 1, backgroundColor: colors.surface },
+  centered: { alignItems: 'center', justifyContent: 'center' },
+  bubble: {
+    position: 'absolute',
+    top: space.lg,
+    alignSelf: 'center',
+    backgroundColor: colors.white,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  bubbleText: { fontFamily: fonts.bold, fontSize: 13, color: colors.onAccent },
+  peerTag: {
+    position: 'absolute',
+    top: 56,
+    left: space.md,
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    maxWidth: '80%',
+  },
+  peerTagText: { fontFamily: fonts.bold, fontSize: 11, color: colors.white },
+  mapStats: { position: 'absolute', left: space.sm, right: space.sm, bottom: space.sm, flexDirection: 'row', gap: space.sm },
+  glass: { flex: 1, backgroundColor: colors.overlay, borderRadius: radius.md, padding: space.md },
+  glassValue: { fontFamily: fonts.semibold, fontSize: 18, color: colors.text, marginTop: 2, fontVariant: ['tabular-nums'] },
+  runRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.md, paddingVertical: space.md },
+  runTitle: { fontFamily: fonts.semibold, fontSize: 18, color: colors.text },
+  runUnit: { fontFamily: fonts.medium, fontSize: 13, color: colors.textDim },
+  friendLine: { fontFamily: fonts.bold, fontSize: 16, color: colors.text, marginBottom: 4 },
+  trendChart: { flexDirection: 'row', gap: 8, position: 'relative', justifyContent: 'center' },
   trendCol: { flex: 1, maxWidth: 26 },
-  trendBar: { width: '100%', borderRadius: 3 },
-  zeroLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: C.separator },
-  trendAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  trendAxisText: { color: C.faint, fontSize: 10 },
-  // totals / friends
-  totals: { color: C.dim, fontSize: 13, textAlign: 'center', marginBottom: 12, fontVariant: ['tabular-nums'] },
-  friendLine: { color: C.text, fontSize: 16, fontWeight: '700', marginBottom: 4 },
-  // start
-  startBtn: { backgroundColor: SOLO_COLOR, borderRadius: 16, paddingVertical: 18, alignItems: 'center', marginTop: 4, marginBottom: 8 },
-  startText: { color: '#000', fontSize: 18, fontWeight: '900', letterSpacing: 2 },
-  // explain
-  explainToggle: { paddingVertical: 12, alignItems: 'center' },
-  explainToggleText: { color: C.dim, fontSize: 14, fontWeight: '600' },
-  explainTitle: { color: C.text, fontSize: 14, fontWeight: '700', marginBottom: 4 },
+  trendBar: { width: '100%', borderRadius: 4 },
+  zeroLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: colors.border },
+  trendAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.sm },
+  explainToggle: { paddingVertical: space.lg, alignItems: 'center' },
+  explainTitle: { fontFamily: fonts.bold, marginBottom: 4 },
 });

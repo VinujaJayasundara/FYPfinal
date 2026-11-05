@@ -27,6 +27,7 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   TouchableWithoutFeedback,
+  StatusBar,
 } from 'react-native';
 import {
   haversineDistanceM,
@@ -53,6 +54,8 @@ import {
 } from '../components/RunMap';
 import OfflineMapButton from '../components/OfflineMapButton';
 import RunScores from '../components/RunScores';
+import { Card, IconCircle, T } from '../components/ui';
+import { colors, fonts, radius, space } from '../theme/tokens';
 import { CALIBRATION_RUNS } from '../../../GhostTracker/src/core/fairness/calibration';
 import { SOLO_COLOR } from '../theme/runColors';
 
@@ -254,18 +257,33 @@ function IdleView({
       };
 
   const isConnected = competition.p2pStatus === 'connected';
-  const syncDotColor = isConnected ? '#00FF87' : '#38383A';
+  const syncDotColor = isConnected ? colors.accent : colors.border;
+  const { race: raceState } = useRace();
+  const race = raceState && raceState.phase !== 'cancelled' && raceState.phase !== 'done' ? raceState : null;
 
   return (
     <View style={styles.idleContainer}>
-      {/* Background Map */}
-      <View style={styles.idleMapContainer}>
+      {/* Map: your surroundings, full screen */}
+      <View style={StyleSheet.absoluteFill}>
         <IdleMap region={region} />
-        <View style={styles.idleMapOverlay} />
       </View>
 
-      {/* Offline map — Top Left */}
-      <OfflineMapButton location={initialLocation} />
+      {/* Top card: what kind of run, GPS state */}
+      <View style={styles.preTop}>
+        <Card tone="overlay" style={styles.preTopCard}>
+          <IconCircle size={44} color={race ? colors.peer : colors.accent}>
+            <Text style={{ fontSize: 20 }}>{race ? '🔗' : '🏃'}</Text>
+          </IconCircle>
+          <View style={{ flex: 1 }}>
+            <T variant="title" numberOfLines={1}>
+              {race ? `Race · ${race.targetM / 1000} km` : 'Solo run'}
+            </T>
+            <T variant="label" numberOfLines={1}>
+              {race ? `vs ${race.friendAlias}` : initialLocation ? 'GPS locked · ready' : 'Finding GPS…'}
+            </T>
+          </View>
+        </Card>
+      </View>
 
       {/* Old Wi-Fi relay SYNC chip: hidden; "Connect with a friend" replaces it */}
       {SHOW_RELAY_SYNC && <TouchableOpacity
@@ -273,59 +291,36 @@ function IdleView({
         onPress={() => competition.setShowSyncModal(true)}
       >
         <View style={[styles.syncDot, { backgroundColor: syncDotColor }]} />
-        <Text style={[styles.syncButtonText, isConnected && { color: '#00FF87' }]}>
-          {isConnected
-            ? `${competition.connectedPeerAlias || 'Peer'}`
-            : 'SYNC'}
+        <Text style={[styles.syncButtonText, isConnected && { color: colors.accent }]}>
+          {isConnected ? `${competition.connectedPeerAlias || 'Peer'}` : 'SYNC'}
         </Text>
       </TouchableOpacity>}
 
-      {/* Content overlay */}
-      {/* Scrolls when the cards make it taller than the screen, and starts
-          below the OFFLINE / SYNC chips so nothing slides under them */}
+      {/* Bottom panel: race / friend, GPS + offline map, START */}
       <ScrollView
-        style={styles.idleScroll}
-        contentContainerStyle={styles.idleContent}
+        style={styles.preScroll}
+        contentContainerStyle={styles.preBottom}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.idleTitle}>START YOUR RUN</Text>
-        <Text style={styles.idleSub}>
-          GPS tracking is ready.{'\n'}
-          {isConnected
-            ? `🔗 Connected to ${competition.connectedPeerAlias || 'a peer'} — start a competition!`
-            : 'Tap Connect with a friend to sync or race.'}
-        </Text>
-
-        <TouchableOpacity style={styles.startButton} onPress={onStart}>
-          <Text style={styles.startButtonText}>START</Text>
-        </TouchableOpacity>
-
-        <FriendConnectButton />
         <RaceSetupCard />
-
-        <View style={styles.infoRow}>
-          <View style={styles.infoPill}>
-            <Text style={styles.infoPillText}>GPS</Text>
-          </View>
-          <View style={styles.infoPill}>
-            <Text style={styles.infoPillText}>1 Hz</Text>
-          </View>
-          <View style={styles.infoPill}>
-            <Text style={styles.infoPillText}>LIVE MAP</Text>
-          </View>
-          {isConnected && (
-            <View style={[styles.infoPill, { borderColor: '#00FF8750' }]}>
-              <Text style={[styles.infoPillText, { color: '#00FF87' }]}>P2P</Text>
+        <FriendConnectButton />
+        <View style={styles.preRow}>
+          <Card tone="overlay" style={styles.preStatus}>
+            <View style={styles.preStatusLine}>
+              <View style={[styles.gpsDot, { backgroundColor: initialLocation ? colors.accent : colors.warn }]} />
+              <T variant="body" style={{ fontFamily: fonts.semibold }}>
+                {initialLocation ? 'GPS locked' : 'Finding GPS…'}
+              </T>
             </View>
-          )}
+            <T variant="caption" style={{ marginBottom: space.sm }}>
+              {initialLocation ? '1 Hz · filtered and smoothed' : 'Best outdoors; can take a minute'}
+            </T>
+            <OfflineMapButton location={initialLocation} inline />
+          </Card>
+          <TouchableOpacity style={styles.preStart} onPress={onStart} activeOpacity={0.85} accessibilityLabel="Start run">
+            <Text style={styles.preStartText}>START</Text>
+          </TouchableOpacity>
         </View>
-
-        {initialLocation && (
-          <Text style={styles.locationReady}>
-            GPS LOCKED · {initialLocation.latitude.toFixed(4)},{' '}
-            {initialLocation.longitude.toFixed(4)}
-          </Text>
-        )}
       </ScrollView>
 
       {/* ── Peer Discovery Modal ───────────────────────── */}
@@ -365,7 +360,7 @@ function IdleView({
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="url"
-                    selectionColor="#00FF87"
+                    selectionColor="#C6F432"
                   />
                   <TouchableOpacity
                     style={[styles.modalConnectBtn, competition.p2pStatus === 'connecting' && { opacity: 0.5 }]}
@@ -505,7 +500,7 @@ function RunningView({
           ? `${Math.abs(ghostDelta).toFixed(1)} s ahead`
           : `${ghostDelta.toFixed(1)} s behind`;
   const ghostLeadColor =
-    ghostDelta === null || run.ghostFinished ? '#888' : ghostDelta <= 0 ? '#00FF87' : '#FF3B30';
+    ghostDelta === null || run.ghostFinished ? '#888' : ghostDelta <= 0 ? '#C6F432' : '#FF3B30';
 
   // Live RII against the PB pace on this route
   const liveRII =
@@ -523,7 +518,7 @@ function RunningView({
   const peerLeadText = peerLead >= 0
     ? `+${Math.round(peerLead)}m ahead`
     : `${Math.round(Math.abs(peerLead))}m behind`;
-  const peerLeadColor = peerLead >= 0 ? '#00FF87' : '#FF3B30';
+  const peerLeadColor = peerLead >= 0 ? '#C6F432' : '#FF3B30';
 
   // Auto-follow camera (peers share no coordinates, so only the local runner is followed)
   useEffect(() => {
@@ -754,13 +749,13 @@ function FinishedView({
           </View>
         </View>
         {/* Elevation row */}
-        <View style={[styles.summaryRow, { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#38383A' }]}>
+        <View style={[styles.summaryRow, { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#2E2E33' }]}>
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: '#00FF87', fontSize: 18 }]}>↑{Math.round(run.elevationGainM)}m</Text>
+            <Text style={[styles.summaryValue, { fontFamily: 'Urbanist_400Regular', color: '#C6F432', fontSize: 18 }]}>↑{Math.round(run.elevationGainM)}m</Text>
             <Text style={styles.summaryLabel}>Elev Gain</Text>
           </View>
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: '#FF3B30', fontSize: 18 }]}>↓{Math.round(run.elevationLossM)}m</Text>
+            <Text style={[styles.summaryValue, { fontFamily: 'Urbanist_400Regular', color: '#FF3B30', fontSize: 18 }]}>↓{Math.round(run.elevationLossM)}m</Text>
             <Text style={styles.summaryLabel}>Elev Loss</Text>
           </View>
           <View style={styles.summaryItem}>
@@ -790,7 +785,7 @@ function FinishedView({
             <Text style={styles.gpsStatLabel}>Total</Text>
           </View>
           <View style={styles.gpsStatItem}>
-            <Text style={[styles.gpsStatValue, { color: '#00FF87' }]}>
+            <Text style={[styles.gpsStatValue, { color: '#C6F432' }]}>
               {run.validPoints.length}
             </Text>
             <Text style={styles.gpsStatLabel}>Valid</Text>
@@ -886,6 +881,24 @@ const darkMapStyle = [
 // ═══════════════════════════════════════════════════════════
 
 const styles = StyleSheet.create({
+  // Pre-run (revamp): map + top card + bottom panel
+  preTop: { position: 'absolute', top: 44, left: 16, right: 16, zIndex: 5 },
+  preTopCard: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  preScroll: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '62%' },
+  preBottom: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
+  preRow: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
+  preStatus: { flex: 1, justifyContent: 'center' },
+  preStatusLine: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  gpsDot: { width: 10, height: 10, borderRadius: 5 },
+  preStart: {
+    width: 120,
+    borderRadius: radius.lg,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 120,
+  },
+  preStartText: { fontFamily: fonts.extrabold, fontSize: 20, letterSpacing: 1.5, color: colors.onAccent },
   // ── IDLE ──────────────────────────────────────────────
   idleContainer: {
     flex: 1,
@@ -910,12 +923,13 @@ const styles = StyleSheet.create({
   },
   idleTitle: {
     fontSize: 32,
-    fontWeight: '200',
+    fontFamily: 'Urbanist_400Regular',
     color: '#FFFFFF',
     marginBottom: 8,
     letterSpacing: 3,
   },
   idleSub: {
+    fontFamily: 'Urbanist_400Regular',
     fontSize: 14,
     color: '#8E8E93',
     textAlign: 'center',
@@ -926,10 +940,10 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: '#00FF87',
+    backgroundColor: '#C6F432',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#00FF87',
+    shadowColor: '#C6F432',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 30,
@@ -937,8 +951,8 @@ const styles = StyleSheet.create({
   },
   startButtonText: {
     fontSize: 22,
-    fontWeight: '700',
-    color: '#000000',
+    fontFamily: 'Urbanist_700Bold',
+    color: '#0E0E10',
     letterSpacing: 3,
   },
   infoRow: {
@@ -951,20 +965,20 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#38383A',
+    borderColor: '#2E2E33',
   },
   infoPillText: {
     fontSize: 10,
     color: '#8E8E93',
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     letterSpacing: 1,
   },
   locationReady: {
     marginTop: 24,
     fontSize: 11,
-    color: '#00FF87',
+    color: '#C6F432',
     letterSpacing: 1,
-    fontWeight: '500',
+    fontFamily: 'Urbanist_500Medium',
   },
 
   // ── SYNC BUTTON (top-right) ───────────────────────────
@@ -980,11 +994,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(28, 28, 30, 0.85)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#38383A',
+    borderColor: '#2E2E33',
     zIndex: 10,
   },
   syncButtonConnected: {
-    borderColor: '#00FF8750',
+    borderColor: '#C6F43250',
     backgroundColor: 'rgba(0, 255, 135, 0.08)',
   },
   syncDot: {
@@ -994,7 +1008,7 @@ const styles = StyleSheet.create({
   },
   syncButtonText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
     color: '#8E8E93',
     letterSpacing: 1,
   },
@@ -1006,7 +1020,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#1C1C1F',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -1020,15 +1034,17 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
     color: '#FFFFFF',
   },
   modalClose: {
+    fontFamily: 'Urbanist_400Regular',
     fontSize: 22,
     color: '#8E8E93',
     padding: 4,
   },
   modalDesc: {
+    fontFamily: 'Urbanist_400Regular',
     fontSize: 14,
     color: '#8E8E93',
     lineHeight: 20,
@@ -1036,13 +1052,13 @@ const styles = StyleSheet.create({
   },
   modalInputLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     color: '#8E8E93',
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   modalInput: {
-    backgroundColor: '#2C2C2E',
+    backgroundColor: '#2A2A2E',
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
@@ -1050,7 +1066,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#00FF87',
+    borderColor: '#C6F432',
     marginBottom: 16,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
@@ -1064,15 +1080,17 @@ const styles = StyleSheet.create({
   modalConnectBtnText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
   },
   modalError: {
+    fontFamily: 'Urbanist_400Regular',
     color: '#FF3B30',
     fontSize: 13,
     marginTop: 8,
     textAlign: 'center',
   },
   modalWaiting: {
+    fontFamily: 'Urbanist_400Regular',
     color: '#FF9F0A',
     fontSize: 13,
     textAlign: 'center',
@@ -1082,7 +1100,7 @@ const styles = StyleSheet.create({
   // ── Nearby Devices / Scanning ─────────────────────────
   nearbyTitle: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
     color: '#8E8E93',
     letterSpacing: 1,
     marginBottom: 12,
@@ -1091,26 +1109,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 32,
-    backgroundColor: '#2C2C2E',
+    backgroundColor: '#2A2A2E',
     borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#38383A',
+    borderColor: '#2E2E33',
     borderStyle: 'dashed',
   },
   scanningDots: {
+    fontFamily: 'Urbanist_400Regular',
     fontSize: 24,
-    color: '#00FF87',
+    color: '#C6F432',
     marginBottom: 12,
     letterSpacing: 4,
   },
   scanningText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     color: '#FFFFFF',
     marginBottom: 6,
   },
   scanningHint: {
+    fontFamily: 'Urbanist_400Regular',
     fontSize: 13,
     color: '#8E8E93',
     textAlign: 'center',
@@ -1121,44 +1141,45 @@ const styles = StyleSheet.create({
   peerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2C2C2E',
+    backgroundColor: '#2A2A2E',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#00FF8730',
+    borderColor: '#C6F43230',
   },
   peerCardDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#00FF87',
+    backgroundColor: '#C6F432',
     marginRight: 12,
   },
   peerCardInfo: { flex: 1 },
   peerCardName: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
     color: '#FFFFFF',
   },
   peerCardStatus: {
+    fontFamily: 'Urbanist_400Regular',
     fontSize: 12,
-    color: '#00FF87',
+    color: '#C6F432',
     marginTop: 2,
   },
 
   // Modal race buttons
   modalStartRaceBtn: {
-    backgroundColor: '#00FF87',
+    backgroundColor: '#C6F432',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 8,
   },
   modalStartRaceBtnText: {
-    color: '#000000',
+    color: '#0E0E10',
     fontSize: 18,
-    fontWeight: '800',
+    fontFamily: 'Urbanist_800ExtraBold',
     letterSpacing: 1,
   },
   modalDisconnectBtn: {
@@ -1168,7 +1189,7 @@ const styles = StyleSheet.create({
   modalDisconnectBtnText: {
     color: '#FF3B30',
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
   },
 
   // ── COMPETITION OVERLAY (during run) ──────────────────
@@ -1196,14 +1217,14 @@ const styles = StyleSheet.create({
   competitionTitle: {
     flex: 1,
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
     color: '#0A84FF',
     letterSpacing: 1,
   },
   competitionLead: {
     fontSize: 13,
     fontWeight: '700',
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
   },
   competitionStats: {
     flexDirection: 'row',
@@ -1218,19 +1239,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
   },
   competitionStatLabel: {
     fontSize: 9,
     color: '#8E8E93',
     marginTop: 2,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     letterSpacing: 0.5,
   },
   competitionDivider: {
     width: 1,
     height: 28,
-    backgroundColor: '#38383A',
+    backgroundColor: '#2E2E33',
   },
   competitionNpiRow: {
     flexDirection: 'row',
@@ -1239,16 +1260,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#38383A',
+    borderTopColor: '#2E2E33',
   },
   competitionNpiLabel: {
     fontSize: 11,
     color: '#8E8E93',
-    fontWeight: '500',
+    fontFamily: 'Urbanist_500Medium',
   },
   competitionNpiValue: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
   },
 
   // ── RUNNING ───────────────────────────────────────────
@@ -1263,13 +1284,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   livePanel: {
-    backgroundColor: '#0B0B0D',
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    marginTop: -18, // overlap the map edge slightly
+    backgroundColor: colors.bg,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    marginTop: -24, // overlap the map edge slightly
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: Platform.OS === 'ios' ? 100 : 84, // clear the see-through tab bar
+    paddingTop: 18,
+    paddingBottom: 12, // the tab bar sits below (solid)
   },
   bigRow: {
     flexDirection: 'row',
@@ -1281,28 +1302,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   bigValue: {
-    color: '#FFFFFF',
-    fontSize: 40,
-    fontWeight: '800',
+    color: colors.text,
+    fontSize: 42,
+    fontFamily: fonts.bold,
     fontVariant: ['tabular-nums'],
     letterSpacing: -1,
   },
   bigLabel: {
-    color: '#8E8E93',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.5,
+    color: colors.textDim,
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    letterSpacing: 1.2,
     marginTop: 2,
   },
   smallLine: {
-    color: '#8E8E93',
-    fontSize: 13,
+    color: colors.textDim,
+    fontSize: 14,
+    fontFamily: fonts.medium,
     textAlign: 'center',
     marginTop: 10,
     fontVariant: ['tabular-nums'],
   },
   gpsHint: {
-    color: '#FF9F0A',
+    color: colors.warn,
+    fontFamily: fonts.medium,
     fontSize: 12,
     textAlign: 'center',
     marginTop: 6,
@@ -1343,11 +1366,11 @@ const styles = StyleSheet.create({
   },
   liveText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
     color: '#FF3B30',
     letterSpacing: 2,
   },
-  gpsCount: { fontSize: 10, color: '#8E8E93', marginLeft: 4 },
+  gpsCount: { fontFamily: 'Urbanist_400Regular', fontSize: 10, color: '#8E8E93', marginLeft: 4 },
 
   recenterBtn: {
     position: 'absolute',
@@ -1381,9 +1404,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   ghostOverlayLabel: {
-    fontSize: 10, fontWeight: '700', color: '#8E8E93', letterSpacing: 1,
+    fontSize: 10, fontFamily: 'Urbanist_700Bold', color: '#8E8E93', letterSpacing: 1,
   },
-  ghostOverlayText: { fontSize: 12, fontWeight: '700', fontFamily: 'monospace' },
+  ghostOverlayText: { fontSize: 14, fontFamily: fonts.bold },
 
   // Markers
   runnerMarker: {
@@ -1403,7 +1426,7 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#00FF87',
+    backgroundColor: '#C6F432',
     borderWidth: 3,
     borderColor: '#fff',
   },
@@ -1437,7 +1460,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#00FF87',
+    backgroundColor: '#C6F432',
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },
@@ -1459,7 +1482,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#000000',
+    backgroundColor: '#0E0E10',
   },
 
   // Stats panel
@@ -1492,7 +1515,7 @@ const styles = StyleSheet.create({
   },
   mainStatUnit: {
     fontSize: 22,
-    fontWeight: '400',
+    fontFamily: 'Urbanist_400Regular',
     color: '#636366',
     marginLeft: 4,
   },
@@ -1508,23 +1531,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     width: '100%',
     borderWidth: 1,
-    borderColor: '#38383A',
+    borderColor: '#2E2E33',
   },
   liveStatItem: { flex: 1, alignItems: 'center' },
   liveStatValue: {
     fontSize: 22,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
   },
   liveStatLabel: {
     fontSize: 9,
     color: '#636366',
     marginTop: 4,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     letterSpacing: 1,
   },
-  divider: { width: 1, height: 36, backgroundColor: '#38383A' },
+  divider: { width: 1, height: 36, backgroundColor: '#2E2E33' },
 
   // Live RII
   liveRIIBar: {
@@ -1533,29 +1556,29 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '100%',
     marginTop: 10,
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#1C1C1F',
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
   liveRIILeft: {},
   liveRIILabel: {
-    fontSize: 10, color: '#8E8E93', fontWeight: '600', letterSpacing: 1,
+    fontSize: 10, color: '#8E8E93', fontFamily: 'Urbanist_600SemiBold', letterSpacing: 1,
   },
-  liveRIIValue: { fontSize: 16, fontWeight: '700', fontFamily: 'monospace', marginTop: 2 },
-  ghostLeadBadge: { fontSize: 14, fontWeight: '700', fontFamily: 'monospace' },
+  liveRIIValue: { fontSize: 16, fontWeight: '700', fontFamily: 'Urbanist_700Bold', marginTop: 2 },
+  ghostLeadBadge: { fontSize: 14, fontWeight: '700', fontFamily: 'Urbanist_700Bold' },
 
   // Splits
   splitsContainer: {
     width: '100%',
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#1C1C1F',
     borderRadius: 12,
     padding: 16,
     marginTop: 10,
   },
   splitsTitle: {
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     color: '#8E8E93',
     marginBottom: 8,
     letterSpacing: 1.5,
@@ -1565,11 +1588,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 6,
   },
-  splitKm: { fontSize: 13, color: '#8E8E93' },
+  splitKm: { fontFamily: 'Urbanist_400Regular', fontSize: 13, color: '#8E8E93' },
   splitPace: {
     fontSize: 13,
-    color: '#00FF87',
-    fontFamily: 'monospace',
+    color: '#C6F432',
+    fontFamily: 'Urbanist_700Bold',
     fontWeight: '600',
   },
 
@@ -1578,8 +1601,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
     alignItems: 'center',
   },
-  gpsLabel: { fontSize: 10, color: '#636366', fontFamily: 'monospace' },
-  gpsAccuracy: { fontSize: 10, color: '#0A84FF', marginTop: 2 },
+  gpsLabel: { fontSize: 10, color: '#636366', fontFamily: 'Urbanist_700Bold' },
+  gpsAccuracy: { fontFamily: 'Urbanist_400Regular', fontSize: 10, color: '#0A84FF', marginTop: 2 },
 
   // Stop button overlay
   stopAreaOverlay: {
@@ -1607,7 +1630,7 @@ const styles = StyleSheet.create({
   },
   peerMapOverlayLabel: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: 'Urbanist_700Bold',
     color: '#0A84FF',
     letterSpacing: 1,
     marginBottom: 2,
@@ -1615,30 +1638,26 @@ const styles = StyleSheet.create({
   peerMapOverlayText: {
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
     color: '#FFFFFF',
   },
 
+  // White round control (as in the design); red square = stop. Distinct
+  // from the red "recording" button in the tab bar.
   stopButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,59,48,0.85)',
-    borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.2)',
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#FF3B30',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 8,
+    elevation: 6,
   },
   stopInner: {
-    width: 28,
-    height: 28,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 4,
+    width: 26,
+    height: 26,
+    backgroundColor: '#FF453A',
+    borderRadius: 6,
   },
   stopLabelOverlay: {
     marginTop: 12,
@@ -1654,12 +1673,12 @@ const styles = StyleSheet.create({
   // ── FINISHED ──────────────────────────────────────────
   finishedScroll: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#0E0E10',
   },
   finishedContent: {
     paddingHorizontal: 16,
-    paddingTop: 0,
-    paddingBottom: 40,
+    paddingTop: (StatusBar.currentHeight ?? 24) + 8, // below the status bar
+    paddingBottom: 48, // clear of the centre Run button
   },
   finishedMapContainer: {
     height: 220,
@@ -1678,8 +1697,8 @@ const styles = StyleSheet.create({
   },
   finishedMapBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#00FF87',
+    fontFamily: 'Urbanist_700Bold',
+    color: '#C6F432',
     letterSpacing: 1,
   },
   finishHeader: {
@@ -1688,13 +1707,13 @@ const styles = StyleSheet.create({
   },
   finishTitle: {
     fontSize: 28,
-    fontWeight: '300',
+    fontFamily: 'Urbanist_400Regular',
     color: '#FFFFFF',
     letterSpacing: 1,
   },
   summaryCard: {
     width: '100%',
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#1C1C1F',
     borderRadius: 16,
     padding: 24,
     marginBottom: 12,
@@ -1705,46 +1724,46 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
   },
   summaryLabel: {
     fontSize: 10, color: '#636366', marginTop: 4,
-    fontWeight: '600', letterSpacing: 1,
+    fontFamily: 'Urbanist_600SemiBold', letterSpacing: 1,
   },
 
   // RII Result
   riiResultCard: {
     width: '100%',
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#1C1C1F',
     borderRadius: 16,
     padding: 20,
     alignItems: 'center',
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#00FF8730',
+    borderColor: '#C6F43230',
   },
   riiResultLabel: {
-    fontSize: 10, color: '#8E8E93', fontWeight: '600', letterSpacing: 2,
+    fontSize: 10, color: '#8E8E93', fontFamily: 'Urbanist_600SemiBold', letterSpacing: 2,
   },
   riiResultValue: {
     fontSize: 48,
     fontWeight: '200',
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
     marginVertical: 4,
   },
-  riiResultDesc: { fontSize: 12, color: '#636366', marginTop: 4 },
+  riiResultDesc: { fontFamily: 'Urbanist_400Regular', fontSize: 12, color: '#636366', marginTop: 4 },
 
   // GPS Stats
   gpsStatsCard: {
     width: '100%',
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#1C1C1F',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
   },
   gpsStatsTitle: {
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     color: '#8E8E93',
     marginBottom: 10,
     letterSpacing: 1.5,
@@ -1758,13 +1777,13 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'monospace',
+    fontFamily: 'Urbanist_700Bold',
   },
   gpsStatLabel: {
     fontSize: 10,
     color: '#636366',
     marginTop: 2,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     letterSpacing: 0.5,
   },
 
@@ -1773,11 +1792,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 32,
     paddingVertical: 14,
-    backgroundColor: '#00FF87',
+    backgroundColor: '#C6F432',
     borderRadius: 12,
     alignSelf: 'center',
   },
   resetButtonText: {
-    fontSize: 14, fontWeight: '700', color: '#000000', letterSpacing: 1,
+    fontSize: 14, fontFamily: 'Urbanist_700Bold', color: '#0E0E10', letterSpacing: 1,
   },
 });

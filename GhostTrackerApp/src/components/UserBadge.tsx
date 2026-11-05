@@ -13,8 +13,8 @@ import Avatar from './Avatar';
 
 // ── Design Tokens ─────────────────────────────────────────
 const C = {
-  accent: '#00FF87',
-  accentDim: '#00FF8718',
+  accent: '#C6F432',
+  accentDim: '#C6F43218',
   textPrimary: '#FFFFFF',
   textSecondary: '#8E8E93',
 };
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontFamily: 'Urbanist_800ExtraBold',
     color: C.accent,
     letterSpacing: 0.5,
   },
@@ -87,14 +87,14 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: 'Urbanist_600SemiBold',
     color: C.textPrimary,
     maxWidth: 90,
     lineHeight: 16,
   },
   subtitle: {
     fontSize: 9,
-    fontWeight: '500',
+    fontFamily: 'Urbanist_500Medium',
     color: C.textSecondary,
     letterSpacing: 0.3,
     lineHeight: 12,

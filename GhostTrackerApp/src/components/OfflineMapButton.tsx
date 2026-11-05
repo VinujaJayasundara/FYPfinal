@@ -14,13 +14,20 @@ import {
   type OfflineAreaInfo,
 } from '../core/offlineMap';
 
-const C = { accent: '#00FF87', amber: '#FF9F0A', text: '#FFFFFF', dim: '#8E8E93', border: '#38383A' };
+const C = { accent: '#C6F432', amber: '#FF9F0A', text: '#FFFFFF', dim: '#8E8E93', border: '#2E2E33' };
 
 function formatMB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function OfflineMapButton({ location }: { location: { latitude: number; longitude: number } | null }) {
+export default function OfflineMapButton({
+  location,
+  inline = false,
+}: {
+  location: { latitude: number; longitude: number } | null;
+  /** Render in the layout flow (inside a card) instead of floating top-left. */
+  inline?: boolean;
+}) {
   const [area, setArea] = useState<OfflineAreaInfo | null>(null);
   const [checked, setChecked] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
@@ -103,7 +110,7 @@ export default function OfflineMapButton({ location }: { location: { latitude: n
   const saved = area?.complete;
   const label = progress !== null ? `${progress}%` : saved ? 'OFFLINE' : 'OFFLINE MAP';
   return (
-    <TouchableOpacity style={[styles.chip, saved && styles.chipSaved]} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity style={[styles.chip, inline && styles.chipInline, saved && styles.chipSaved]} onPress={onPress} activeOpacity={0.8}>
       <Text style={[styles.icon, { color: saved ? C.accent : progress !== null ? C.amber : C.dim }]}>
         {saved && progress === null ? '✓' : '⬇'}
       </Text>
@@ -128,7 +135,8 @@ const styles = StyleSheet.create({
     borderColor: C.border,
     zIndex: 10,
   },
-  chipSaved: { borderColor: '#00FF8750' },
-  icon: { fontSize: 13, fontWeight: '800' },
-  text: { color: C.text, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
+  chipInline: { position: 'relative', top: 0, left: 0, alignSelf: 'flex-start', zIndex: 0 },
+  chipSaved: { borderColor: '#C6F43250' },
+  icon: { fontSize: 13, fontFamily: 'Urbanist_800ExtraBold' },
+  text: { color: C.text, fontSize: 12, fontFamily: 'Urbanist_700Bold', letterSpacing: 1 },
 });

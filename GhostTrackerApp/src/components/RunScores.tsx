@@ -17,9 +17,9 @@ import {
 } from '../../../GhostTracker/src/core/fairness/calibration';
 
 const C = {
-  surface: '#1C1C1E',
-  elevated: '#2C2C2E',
-  accent: '#00FF87',
+  surface: '#1C1C1F',
+  elevated: '#2A2A2E',
+  accent: '#C6F432',
   amber: '#FF9F0A',
   text: '#FFFFFF',
   dim: '#8E8E93',
@@ -129,18 +129,18 @@ export default function RunScores({
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: C.surface, borderRadius: 16, padding: 16, marginTop: 12, width: '100%' },
-  label: { color: C.dim, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
-  baselineTitle: { color: C.text, fontSize: 17, fontWeight: '700' },
+  card: { backgroundColor: C.surface, borderRadius: 24, padding: 16, marginTop: 12, width: '100%' },
+  label: { color: C.dim, fontSize: 11, fontFamily: 'Urbanist_700Bold', letterSpacing: 1.5, marginBottom: 10 },
+  baselineTitle: { color: C.text, fontSize: 17, fontFamily: 'Urbanist_700Bold' },
   dots: { flexDirection: 'row', gap: 8, marginTop: 10 },
   dot: { flex: 1, height: 8, borderRadius: 4, backgroundColor: C.elevated },
   dotDone: { backgroundColor: C.accent },
-  note: { color: C.dim, fontSize: 13, lineHeight: 18, marginTop: 10 },
+  note: { fontFamily: 'Urbanist_400Regular', color: C.dim, fontSize: 13, lineHeight: 18, marginTop: 10 },
   row: { flexDirection: 'row' },
   cell: { flex: 1, alignItems: 'center' },
-  big: { fontSize: 30, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  cellLabel: { color: C.dim, fontSize: 12, fontWeight: '700', letterSpacing: 1, marginTop: 2 },
-  cellSub: { color: C.faint, fontSize: 12, marginTop: 2 },
-  baseRow: { alignItems: 'center', marginTop: 14, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#38383A' },
-  baseValue: { fontSize: 18, fontWeight: '700' },
+  big: { fontSize: 30, fontFamily: 'Urbanist_800ExtraBold', fontVariant: ['tabular-nums'] },
+  cellLabel: { color: C.dim, fontSize: 12, fontFamily: 'Urbanist_700Bold', letterSpacing: 1, marginTop: 2 },
+  cellSub: { fontFamily: 'Urbanist_400Regular', color: C.faint, fontSize: 12, marginTop: 2 },
+  baseRow: { alignItems: 'center', marginTop: 14, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#2E2E33' },
+  baseValue: { fontSize: 18, fontFamily: 'Urbanist_700Bold' },
 });

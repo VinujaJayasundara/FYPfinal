@@ -163,7 +163,7 @@ const markerStyles = StyleSheet.create({
     backgroundColor: 'rgba(34,197,94,0.3)',
   },
   runnerMarkerDot: {
-    width: 14, height: 14, borderRadius: 7, backgroundColor: '#22c55e',
+    width: 14, height: 14, borderRadius: 7, backgroundColor: '#C6F432',
     borderWidth: 3, borderColor: '#fff',
   },
   peerMarkerWrapper: {
@@ -173,7 +173,7 @@ const markerStyles = StyleSheet.create({
     backgroundColor: 'rgba(10,132,255,0.85)', paddingHorizontal: 4, paddingVertical: 1,
     borderRadius: 3, marginBottom: 2,
   },
-  peerLabelText: { fontSize: 8, fontWeight: '700', color: '#fff' },
+  peerLabelText: { fontSize: 8, fontFamily: 'Urbanist_700Bold', color: '#fff' },
   peerMarkerPulse: {
     position: 'absolute', bottom: 0, width: 28, height: 28, borderRadius: 14,
     backgroundColor: 'rgba(10,132,255,0.3)',
@@ -257,7 +257,7 @@ export function RunningMap({
         }}
       />
 
-      <RouteLine id="route" coords={routeCoords} color={raceColors?.route ?? '#22c55e'} />
+      <RouteLine id="route" coords={routeCoords} color={raceColors?.route ?? '#C6F432'} />
 
       {routeCoords.length > 0 && (
         <Marker id="start" lngLat={toLngLat(routeCoords[0])} anchor="center">
@@ -305,7 +305,7 @@ export function FinishedMap({
   mapRef,
   initialRegion,
   routeCoords,
-  color = '#22c55e',
+  color = '#C6F432',
   interactive = false,
 }: {
   mapRef: React.RefObject<any>;
