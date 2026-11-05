@@ -273,6 +273,31 @@ Seven bugs fixed (commit bb19a3e):
 
 ---
 
+## GPS consistency (5 Nov) — from the first real two-phone race
+
+**Real test:** OnePlus 7 and POCO X3 NFC in one hand, 2 km race. The POCO drifted and showed itself 32 m ahead. Cause: distance was the sum of raw fix-to-fix steps, and a noisier GPS zig-zags, which adds length.
+
+**Fix:** `core/spatial/trackProcessor.ts`:
+- 1 Hz gate.
+- Accuracy ≤ 20 m (configurable; the thesis bound is 50 m).
+- Velocity clamp of 6.94 m/s, measured from the predicted position and allowing for accuracy.
+- 3-fix warm-up.
+- Constant-velocity Kalman filter weighted by accuracy.
+- Distance = filtered speed × time, confirmed by real steps, with a 15 s restart correction after stops; standing still adds nothing.
+- The route, the map marker, the ghost and the race gap all use the filtered values.
+- A debug raw GPS log (`gps_raw_log`) is saved with every run; Diagnostics → RAW GPS → Share last run (CSV).
+
+**Simulated (seeded, not real) two-phone results over 2 km**, clean ±2 m vs noisy ±7 m phone:
+- Steady: gap ≤ 15 m.
+- Stop-and-go: gap ≤ 18 m.
+- Tight 400 m track, 5 laps: gap ≤ 54 m (worst case).
+- Raw sums: > 100 m apart.
+- Standing still for 5 min: < 20 m with harsh noise (raw sum > 1 km).
+
+**For the viva sheet:** the pipeline extends thesis Table 12 (accuracy 20 m instead of 50 m; warm-up, Kalman smoothing and confirmed distance are added). This is motivated by the field test above, and real phone results replace the simulated ones once re-tested.
+
+---
+
 ## Phase G — Measurements and screenshots (14 – 16 Nov) — mainly you
 
 | # | Measurement | How | Replaces |

@@ -60,13 +60,15 @@ export interface TrackConfig {
    * while moving — not inflated by sideways jitter; 'chord' sums the steps
    * between counted route points.
    */
-  distanceMode: 'speed' | 'chord';
+  distanceMode: 'speed' | 'chord' | 'max';
   /**
    * 'speed' mode: speed·dt is held as pending until a real step confirms
    * movement; pending older than this (s) without a confirmed step is
    * dropped (standing still).
    */
   pendingTimeoutS: number;
+  /** Seconds after starting to move in which the restart correction applies. */
+  restartWindowS: number;
   /** Minimum step also scales with the fix accuracy: max(minStepM, accuracy × this). */
   stepPerAccuracy: number;
   /** Below this filtered speed (m/s) the runner counts as standing still. */
@@ -85,6 +87,7 @@ export const DEFAULT_TRACK_CONFIG: TrackConfig = {
   minStepM: 4,
   distanceMode: 'speed',
   pendingTimeoutS: 20,
+  restartWindowS: 15,
   stepPerAccuracy: 1.5,
   minMovingSpeedMs: 1.0,
   accelNoise: 0.3,
@@ -168,6 +171,12 @@ export class TrackProcessor {
   private prevTime = 0;
   private pending = 0;
   private lastStepTime = 0;
+  // Restart correction: where the current moving stretch began, and the
+  // distance counted since then
+  private segStart: TrackPoint | null = null;
+  private segStartTime = 0;
+  private segCounted = 0;
+  private stillSince = 0;
   private anchor: TrackPoint | null = null;
   private total = 0;
   private current: TrackPoint | null = null;
@@ -201,6 +210,9 @@ export class TrackProcessor {
     this.prevTime = 0;
     this.pending = 0;
     this.lastStepTime = 0;
+    this.segStart = null;
+    this.segCounted = 0;
+    this.stillSince = 0;
     this.anchor = null;
     this.total = 0;
     this.current = null;
@@ -269,10 +281,17 @@ export class TrackProcessor {
     const dtS = this.prevTime > 0 ? (fix.timestamp - this.prevTime) / 1000 : 0;
     this.prevTime = fix.timestamp;
     let speedAdded = 0;
-    if (this.cfg.distanceMode === 'speed') {
+    if (this.cfg.distanceMode !== 'chord') {
       if (!reanchor && speedNow >= this.cfg.minMovingSpeedMs && dtS > 0 && dtS <= 10) {
         speedAdded = speedNow * dtS;
         this.pending += speedAdded;
+      }
+      // Standing for a few seconds ends the current moving stretch
+      if (speedNow < this.cfg.minMovingSpeedMs) {
+        if (this.stillSince === 0) this.stillSince = fix.timestamp;
+        if (fix.timestamp - this.stillSince >= 3000) this.segStart = null;
+      } else {
+        this.stillSince = 0;
       }
       // No confirmed step for a while: it was jitter, not movement
       if (this.lastStepTime > 0 && (fix.timestamp - this.lastStepTime) / 1000 > this.cfg.pendingTimeoutS) {
@@ -284,6 +303,7 @@ export class TrackProcessor {
       this.anchor = p;
       this.pending = 0;
       this.lastStepTime = fix.timestamp;
+      this.segStart = null;
       return { accepted: true, stage: null, smoothed: p, counted: true, addedM: 0, distanceM: this.distanceM };
     }
     const step = haversineDistanceM(this.anchor.latitude, this.anchor.longitude, p.latitude, p.longitude);
@@ -294,8 +314,30 @@ export class TrackProcessor {
     }
     // A real step: confirm the movement
     if (this.cfg.distanceMode === 'chord') this.total += step;
-    else {
-      this.total += this.pending;
+    else if (this.cfg.distanceMode === 'max') {
+      // speed×time can fall short after a (re)start while the filter's speed
+      // catches up; the confirmed step is never less than the real movement
+      this.total += Math.max(this.pending, step);
+      this.pending = 0;
+    } else {
+      // speed × time, plus the restart correction: right after starting to
+      // move the filter's speed lags, so the straight-line distance from where
+      // this stretch began can exceed what was counted; never adds on curves
+      // (a straight line is never longer than the path)
+      if (this.segStart === null) {
+        this.segStart = this.anchor;
+        this.segStartTime = fix.timestamp;
+        this.segCounted = 0;
+      }
+      let add = this.pending;
+      // Only while the filter's speed is still catching up (first
+      // restartWindowS of the stretch); later, noise would ratchet it up
+      if ((fix.timestamp - this.segStartTime) / 1000 <= this.cfg.restartWindowS) {
+        const disp = haversineDistanceM(this.segStart.latitude, this.segStart.longitude, p.latitude, p.longitude);
+        if (disp > this.segCounted + add) add = disp - this.segCounted;
+      }
+      this.total += add;
+      this.segCounted += add;
       this.pending = 0;
     }
     this.lastStepTime = fix.timestamp;

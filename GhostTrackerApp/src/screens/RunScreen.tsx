@@ -463,8 +463,9 @@ function RunningView({
     run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm)
       ? formatPace(run.avgPaceSPerKm)
       : '--:--';
+  // Slower than 30:00 /km = walking pace or standing: show no pace
   const currentPace =
-    run.currentPaceSPerKm > 0 && isFinite(run.currentPaceSPerKm)
+    run.currentPaceSPerKm > 0 && run.currentPaceSPerKm < 1800 && isFinite(run.currentPaceSPerKm)
       ? formatPace(run.currentPaceSPerKm)
       : '--:--';
 

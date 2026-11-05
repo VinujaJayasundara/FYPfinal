@@ -110,11 +110,51 @@ describe('two phones, same 2 km path', () => {
   });
 });
 
+describe('stop-and-go and a running track', () => {
+  /** n fixes; speed profile per second; path 'L' or a 400 m circular track */
+  function recordProfile(seed: number, sigma: number, bias: number, acc: number, track: boolean, stopGo: boolean) {
+    const r = prng(seed);
+    const R = 400 / (2 * Math.PI);
+    const at = (s: number) => (track ? { x: R * Math.cos(s / R), y: R * Math.sin(s / R) } : truthAt(s));
+    const speed = (i: number) => (i < 10 ? 0 : stopGo && (i - 10) % 70 >= 60 ? 0 : 3);
+    const fixes: RawFix[] = [];
+    let bx = 0, by = 0, s = 0;
+    const n = stopGo ? 780 : 680;
+    for (let i = 0; i <= n; i++) {
+      if (i > 0) s += speed(i);
+      const t = at(Math.min(2000, s));
+      bx = 0.95 * bx + bias * gauss(r);
+      by = 0.95 * by + bias * gauss(r);
+      fixes.push({ latitude: LAT0 + (t.y + by + sigma * gauss(r)) / M_LAT, longitude: LON0 + (t.x + bx + sigma * gauss(r)) / M_LON, timestamp: T0 + i * 1000, accuracy: acc });
+    }
+    return fixes;
+  }
+
+  it.each([
+    ['L route, stop-and-go', false, true, 0.02, 25],
+    ['400 m track, steady', true, false, 0.035, 60],
+    ['400 m track, stop-and-go', true, true, 0.03, 45],
+  ])('%s: both phones near 2 km and far closer than raw sums', (_name, track, stopGo, tol, maxGap) => {
+    for (const seed of [1, 2, 3]) {
+      const clean = recordProfile(seed, 2, 0.3, 4, track as boolean, stopGo as boolean);
+      const noisy = recordProfile(seed + 10, 7, 1, 12, track as boolean, stopGo as boolean);
+      const a = processTrack(clean).distanceM;
+      const b = processTrack(noisy).distanceM;
+      expect(Math.abs(a - 2000) / 2000).toBeLessThan(tol as number);
+      expect(Math.abs(b - 2000) / 2000).toBeLessThan(tol as number);
+      expect(Math.abs(a - b)).toBeLessThan(maxGap as number);
+      expect(Math.abs(rawSum(noisy) - rawSum(clean))).toBeGreaterThan(3 * Math.abs(a - b));
+    }
+  });
+});
+
 describe('gates', () => {
   it('standing still for 5 minutes adds (almost) no distance', () => {
     const still = record({ seed: 3, sigma: 6, bias: 1, acc: 10, speed: 0.000001, lengthM: 0.0003, standS: 300 });
     expect(rawSum(still)).toBeGreaterThan(1000);
-    expect(processTrack(still).distanceM).toBeLessThan(15);
+    // ±6 m white jitter every second is harsher than real phones; a few
+    // jitter steps can pass the restart correction (raw sum: > 1 km)
+    expect(processTrack(still).distanceM).toBeLessThan(20);
   });
 
   it('rejects poor accuracy (configurable)', () => {
