@@ -6,7 +6,8 @@
  * live run state via `useRun()` and trigger start / stop / reset.
  *
  * Each GPS fix goes through the shared core pipeline (thesis §3.6):
- *   GpsFilter (1 Hz → accuracy ≤ 50 m → v_inst ≤ 6.94 m/s)
+ *   TrackProcessor (1 Hz → accuracy ≤ 20 m → v_inst ≤ 6.94 m/s → warm-up →
+ *   Kalman smoothing → confirmed distance; see core/spatial/trackProcessor.ts)
  *   → haversine distance → 10 s RollingPaceWindow
  *   → GhostPacer: ±Δt against the personal-best run at every 10 m
  *
@@ -32,7 +33,7 @@ import {
   calculateRII,
   calculateElevationDelta,
 } from '../core/algorithms';
-import { GpsFilter } from '../../../GhostTracker/src/core/spatial/gpsFilter';
+import { TrackProcessor } from '../../../GhostTracker/src/core/spatial/trackProcessor';
 import { RollingPaceWindow } from '../../../GhostTracker/src/core/spatial/paceCalculator';
 import { GHOST_CHECKPOINT_INTERVAL_M } from '../../../GhostTracker/src/utils/constants';
 import {
@@ -45,6 +46,7 @@ import {
 import {
   createSession,
   linkBatteryLog,
+  saveRawGpsLog,
   finalizeSession,
   insertTelemetry,
   markAsPB,
@@ -79,6 +81,11 @@ export interface GPSPoint {
   altitude: number | null;
   seqIndex: number;
   filtered: boolean;
+  /** Track-processor stage that did not use this fix (raw log), or null. */
+  stage?: string | null;
+  /** Smoothed position after this fix (raw log, for raw vs filtered). */
+  smoothLat?: number | null;
+  smoothLon?: number | null;
 }
 
 export interface RunState {
@@ -107,6 +114,8 @@ export interface RunState {
   ghostFinished: boolean;
   /** PB average pace on this route (s/km), or null */
   pbPaceSPerKm: number | null;
+  /** Smoothed current position (map marker); null until the first good fix */
+  position: { latitude: number; longitude: number; accuracy: number | null } | null;
   /** Calibration when this run started: valid runs before it and the baseline */
   calibrationAtStart: { runs: number; baselinePace: number | null };
 }
@@ -150,6 +159,7 @@ const INITIAL_RUN: RunState = {
   ghostFinished: false,
   pbPaceSPerKm: null,
   calibrationAtStart: { runs: 0, baselinePace: null },
+  position: null,
 };
 
 const ROUTE_ID = 'default-route';
@@ -185,7 +195,8 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   // Live pipeline state. Kept in refs and updated once per fix, outside the
   // state updater, so React may re-run the updater without side effects.
-  const filterRef = useRef(new GpsFilter());
+  // Raw fixes → gates, warm-up, Kalman smoothing, confirmed distance
+  const trackRef = useRef(new TrackProcessor());
   const paceWindowRef = useRef(new RollingPaceWindow());
   const ghostPacerRef = useRef<GhostPacer | null>(null);
   const lastValidRef = useRef<GPSPoint | null>(null);
@@ -283,7 +294,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
     lastKmDistRef.current = 0;
     lastKmTimeRef.current = startTime;
     startTimeRef.current = startTime;
-    filterRef.current.reset();
+    trackRef.current.reset();
     paceWindowRef.current.reset();
     ghostPacerRef.current = new GhostPacer(ghostCheckpoints);
     lastValidRef.current = null;
@@ -303,12 +314,15 @@ export function RunProvider({ children }: { children: ReactNode }) {
       pbPaceSPerKm,
     });
 
-    // Start GPS tracking at 1 Hz (high accuracy)
+    // Start GPS tracking at 1 Hz, highest accuracy (Android: fused provider,
+    // high-accuracy priority). distanceInterval 0: fixes keep coming while
+    // standing, so the warm-up and the filter can settle before moving.
     locationSub.current = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.BestForNavigation,
         timeInterval: 1000,
-        distanceInterval: 1,
+        distanceInterval: 0,
+        mayShowUserSettingsDialog: true,
       },
       (location) => {
         const point: GPSPoint = {
@@ -322,9 +336,21 @@ export function RunProvider({ children }: { children: ReactNode }) {
           filtered: false,
         };
 
-        // Stages 1–3: 1 Hz gate, accuracy ≤ 50 m, v_inst ≤ 6.94 m/s
-        const accepted = filterRef.current.sanitizeFix({ ...point, velocity: point.speed });
-        if (!accepted) {
+        // Track processor (core/spatial/trackProcessor.ts): 1 Hz gate,
+        // accuracy, velocity, warm-up, Kalman smoothing, confirmed distance.
+        // Every raw fix is kept in run.points for the debug raw-GPS log.
+        const res = trackRef.current.push({
+          latitude: point.latitude,
+          longitude: point.longitude,
+          timestamp: point.timestamp,
+          accuracy: point.accuracy,
+          altitude: point.altitude,
+          speed: point.speed,
+        });
+        point.stage = res.accepted ? (res.stage === 'WARMUP' ? 'WARMUP' : null) : res.stage;
+        point.smoothLat = res.smoothed?.latitude ?? null;
+        point.smoothLon = res.smoothed?.longitude ?? null;
+        if (!res.accepted || !res.smoothed) {
           point.filtered = true;
           setRun((prev) =>
             prev.status !== 'running'
@@ -334,23 +360,28 @@ export function RunProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // Distance and elevation from the last accepted fix
-        const prevValid = lastValidRef.current;
-        lastValidRef.current = point;
+        // Route point = smoothed position at each confirmed step
+        const smooth: GPSPoint = { ...point, latitude: res.smoothed.latitude, longitude: res.smoothed.longitude };
+        const position = { latitude: smooth.latitude, longitude: smooth.longitude, accuracy: point.accuracy };
         let elevDelta = { gain: 0, loss: 0 };
-        if (prevValid) {
-          distanceRef.current += haversineDistanceM(
-            prevValid.latitude,
-            prevValid.longitude,
-            point.latitude,
-            point.longitude,
-          );
-          elevDelta = calculateElevationDelta(prevValid.altitude, point.altitude);
+        if (res.counted) {
+          const prevValid = lastValidRef.current;
+          lastValidRef.current = smooth;
+          if (prevValid) elevDelta = calculateElevationDelta(prevValid.altitude, smooth.altitude);
         }
+        distanceRef.current = res.distanceM;
         const distanceM = distanceRef.current;
 
+        if (res.stage === 'WARMUP') {
+          // Settling: show the position, count nothing yet
+          setRun((prev) =>
+            prev.status !== 'running' ? prev : { ...prev, points: [...prev.points, point], position },
+          );
+          return;
+        }
+
         // 10 s rolling pace (0 = idle sentinel)
-        const rollingPace = paceWindowRef.current.push(point);
+        const rollingPace = paceWindowRef.current.push(smooth);
 
         // Ghost ±Δt at every 10 m mark this fix crossed
         const pacer = ghostPacerRef.current;
@@ -382,11 +413,12 @@ export function RunProvider({ children }: { children: ReactNode }) {
           return {
             ...prev,
             points: [...prev.points, point],
-            validPoints: [...prev.validPoints, point],
+            validPoints: res.counted ? [...prev.validPoints, smooth] : prev.validPoints,
+            position,
             distanceM,
             elevationGainM: prev.elevationGainM + elevDelta.gain,
             elevationLossM: prev.elevationLossM + elevDelta.loss,
-            currentAltitudeM: point.altitude,
+            currentAltitudeM: smooth.altitude,
             currentPaceSPerKm: rollingPace,
             avgPaceSPerKm: calculatePace(distanceM, elapsed),
             splitPaces,
@@ -417,6 +449,25 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   const persistRun = useCallback(async (finishedRun: RunState) => {
     try {
+      // Debug: every raw fix with the smoothed position (raw vs filtered)
+      if (finishedRun.startTime && finishedRun.points.length > 0) {
+        saveRawGpsLog(
+          finishedRun.startTime,
+          finishedRun.points.map(p => ({
+            seq: p.seqIndex,
+            timestamp: p.timestamp,
+            latitude: p.latitude,
+            longitude: p.longitude,
+            accuracy: p.accuracy,
+            speed: p.speed,
+            used: !p.filtered,
+            stage: p.stage ?? null,
+            smoothLat: p.smoothLat ?? null,
+            smoothLon: p.smoothLon ?? null,
+          })),
+        ).catch(e => console.warn('[GPS] raw log not saved:', e));
+      }
+
       if (finishedRun.validPoints.length === 0) {
         console.log('[DB] No valid points — skipping persist');
         return;

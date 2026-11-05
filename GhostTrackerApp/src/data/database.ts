@@ -811,3 +811,54 @@ export async function getRunHistory(): Promise<RunHistoryItem[]> {
   });
   return numberRuns(items);
 }
+
+// ── Raw GPS log (debug) ──────────────────────────────────────
+
+/** Debug: keep every raw fix of each run for raw-vs-filtered comparisons. */
+export const LOG_RAW_GPS = true;
+
+export interface RawGpsRow {
+  seq: number;
+  timestamp: number;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  speed: number | null;
+  used: boolean;
+  stage: string | null;
+  smoothLat: number | null;
+  smoothLon: number | null;
+}
+
+/** Save a run's raw fixes in one transaction (debug log). */
+export async function saveRawGpsLog(runStartedAt: number, rows: RawGpsRow[]): Promise<void> {
+  if (!LOG_RAW_GPS || rows.length === 0) return;
+  const conn = getDb();
+  await conn.withTransactionAsync(async () => {
+    for (const r of rows) {
+      await conn.runAsync(
+        `INSERT OR REPLACE INTO gps_raw_log
+           (run_started_at, seq, timestamp, latitude, longitude, accuracy, speed, used, stage, smooth_lat, smooth_lon)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [runStartedAt, r.seq, r.timestamp, r.latitude, r.longitude, r.accuracy, r.speed, r.used ? 1 : 0, r.stage, r.smoothLat, r.smoothLon],
+      );
+    }
+  });
+}
+
+/** CSV of the most recent run's raw log (raw vs smoothed), or null if none. */
+export async function lastRunRawGpsCsv(): Promise<{ csv: string; rows: number; runStartedAt: number } | null> {
+  const conn = getDb();
+  const last = await conn.getFirstAsync<{ t: number | null }>(`SELECT MAX(run_started_at) AS t FROM gps_raw_log`);
+  if (!last?.t) return null;
+  const rows = await conn.getAllAsync<{
+    seq: number; timestamp: number; latitude: number; longitude: number; accuracy: number | null; speed: number | null;
+    used: number; stage: string | null; smooth_lat: number | null; smooth_lon: number | null;
+  }>(`SELECT * FROM gps_raw_log WHERE run_started_at = ? ORDER BY seq`, [last.t]);
+  const header = 'seq,time_iso,raw_lat,raw_lon,accuracy_m,speed_ms,used,stage,smooth_lat,smooth_lon';
+  const lines = rows.map(r =>
+    [r.seq, new Date(r.timestamp).toISOString(), r.latitude.toFixed(7), r.longitude.toFixed(7), r.accuracy ?? '', r.speed ?? '',
+     r.used, r.stage ?? '', r.smooth_lat?.toFixed(7) ?? '', r.smooth_lon?.toFixed(7) ?? ''].join(','),
+  );
+  return { csv: [header, ...lines].join('\n'), rows: rows.length, runStartedAt: last.t };
+}

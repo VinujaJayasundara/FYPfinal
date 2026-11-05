@@ -40,6 +40,7 @@ import {
   getBatteryLog,
   summarizeBatteryLog,
   batteryLogCsv,
+  lastRunRawGpsCsv,
   type BatteryRunSummary,
 } from '../data/database';
 
@@ -300,6 +301,29 @@ export default function DiagnosticsScreen({
                 </TouchableOpacity>
               </>
             )}
+          </View>
+
+          {/* Raw GPS (debug): raw fixes vs smoothed track of the last run */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>RAW GPS (DEBUG)</Text>
+            <Text style={styles.small}>
+              Every raw fix of the last run with the smoothed position and why a fix was not used. Compare two phones
+              after the same run. Stays on this phone unless you share it.
+            </Text>
+            <TouchableOpacity
+              style={[styles.button, { marginTop: 10 }]}
+              onPress={async () => {
+                const r = await lastRunRawGpsCsv();
+                if (!r) return Share.share({ message: 'No raw GPS log yet: finish a run first.' });
+                Share.share({
+                  title: 'EquiStride raw GPS',
+                  message: `# EquiStride raw GPS · ${device.manufacturer} ${device.model} (${device.environment}) · run ${new Date(r.runStartedAt).toISOString()}
+${r.csv}`,
+                });
+              }}
+            >
+              <Text style={styles.buttonText}>SHARE LAST RUN (CSV)</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Sync log (the Sync tab is hidden from normal use) */}

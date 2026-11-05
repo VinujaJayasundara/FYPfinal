@@ -478,11 +478,11 @@ function RunningView({
     [run.validPoints],
   );
 
-  // Current runner position
+  // Current runner position: the smoothed position (updated every good fix;
+  // route points are only added at confirmed steps)
   const currentPosition =
-    run.validPoints.length > 0
-      ? run.validPoints[run.validPoints.length - 1]
-      : null;
+    run.position ??
+    (run.validPoints.length > 0 ? run.validPoints[run.validPoints.length - 1] : null);
 
   // Ghost = the personal-best run on this route, replayed by elapsed time
   const hasGhost = run.ghostCheckpoints.length >= 2;

@@ -211,6 +211,24 @@ export const CREATE_SCHEMA_SQL = `
   -- run_peers: friends a run was done with (connected over Bluetooth, or a
   -- connected race). Keyed by the run's start time = sessions.start_time.
   -- Only the friend's node ID and display name; never any location.
+  -- gps_raw_log (debug): every raw fix of a run with the smoothed position
+  -- and why a fix was not used, to compare raw vs filtered between phones.
+  -- Stays on the phone; never sent anywhere.
+  CREATE TABLE IF NOT EXISTS gps_raw_log (
+    run_started_at INTEGER NOT NULL,
+    seq            INTEGER NOT NULL,
+    timestamp      INTEGER NOT NULL,
+    latitude       REAL NOT NULL,
+    longitude      REAL NOT NULL,
+    accuracy       REAL,
+    speed          REAL,
+    used           INTEGER NOT NULL,
+    stage          TEXT,
+    smooth_lat     REAL,
+    smooth_lon     REAL,
+    PRIMARY KEY (run_started_at, seq)
+  );
+
   CREATE TABLE IF NOT EXISTS run_peers (
     run_started_at INTEGER NOT NULL,
     peer_id        TEXT NOT NULL,
