@@ -18,19 +18,20 @@ import { BLE_GOSSIP_FRAME_BYTES } from '../core/BluetoothSync';
 import { GossipSession, GossipEvent } from '../../../GhostTracker/src/core/crdt';
 import { GOSSIP_INTERVAL_MS } from '../../../GhostTracker/src/utils/constants';
 import { RUNNER_PROFILES } from '../data/mockData';
+import { colors } from '../theme/tokens';
 
 const C = {
-  bg: '#0E0E10',
-  surface: '#1C1C1F',
-  surfaceElevated: '#2A2A2E',
-  separator: '#2E2E33',
-  accent: '#C6F432',
-  accentDim: '#C6F43230',
-  teal: '#00D4AA',
-  red: '#FF3B30',
-  amber: '#FF9F0A',
-  blue: '#0A84FF',
-  gold: '#FFD60A',
+  bg: colors.bg,
+  surface: colors.surface,
+  surfaceElevated: colors.elevated,
+  separator: colors.border,
+  accent: colors.accent,
+  accentDim: colors.accent + '30',
+  teal: colors.accent,
+  red: colors.danger,
+  amber: colors.textDim,
+  blue: colors.peer,
+  gold: colors.accent,
 };
 
 /**
@@ -546,7 +547,7 @@ export function SyncTab() {
         <View style={styles.card}>
           <View style={styles.statusRow}>
             <View style={[styles.statusDot, { backgroundColor: bleRunning ? C.accent : bleStarting ? C.amber : C.separator }]} />
-            <Text style={[styles.statusText, { color: bleRunning ? C.accent : bleStarting ? C.amber : '#8E8E93' }]}>
+            <Text style={[styles.statusText, { color: bleRunning ? C.accent : bleStarting ? C.amber : colors.textDim }]}>
               {bleRunning
                 ? `Bluetooth on · ${blePeers.filter(p => p.pairing === 'paired').length} paired`
                 : bleStarting ? 'Starting Bluetooth...' : 'Bluetooth off'}
@@ -634,11 +635,11 @@ export function SyncTab() {
               value={serverAddress}
               onChangeText={setServerAddress}
               placeholder="172.20.10.4:8080"
-              placeholderTextColor="#8E8E93"
+              placeholderTextColor={colors.textDim}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
-              selectionColor="#C6F432"
+              selectionColor={colors.accent}
             />
             <TouchableOpacity
               style={[styles.button, styles.connectBtn, p2pStatus === 'connecting' && styles.buttonDisabled]}
@@ -727,12 +728,12 @@ export function SyncTab() {
           {syncedPeers.map((peer, i) => (
             <View key={peer.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: C.separator }}>
               <View>
-                <Text style={{ color: '#FFFFFF', fontSize: 15, fontFamily: 'Urbanist_600SemiBold' }}>{peer.user_alias}</Text>
-                <Text style={{ fontFamily: 'Urbanist_400Regular', color: '#8E8E93', fontSize: 12 }}>Device: {peer.device_id.substring(0, 8)}...</Text>
+                <Text style={{ color: colors.text, fontSize: 15, fontFamily: 'Urbanist_600SemiBold' }}>{peer.user_alias}</Text>
+                <Text style={{ fontFamily: 'Urbanist_400Regular', color: colors.textDim, fontSize: 12 }}>Device: {peer.device_id.substring(0, 8)}...</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={{ color: C.accent, fontSize: 14, fontFamily: 'Urbanist_700Bold' }}>RII {peer.rii_score.toFixed(2)}</Text>
-                <Text style={{ color: '#BF5AF2', fontSize: 12, fontFamily: 'Urbanist_600SemiBold' }}>NPI {peer.npi_score ? peer.npi_score.toFixed(2) : '0.00'}</Text>
+                <Text style={{ color: colors.peer, fontSize: 12, fontFamily: 'Urbanist_600SemiBold' }}>NPI {peer.npi_score ? peer.npi_score.toFixed(2) : '0.00'}</Text>
               </View>
             </View>
           ))}
@@ -772,10 +773,10 @@ const styles = StyleSheet.create({
     borderColor: C.separator,
   },
   sectionTitle: { color: C.accent, fontSize: 13, fontFamily: 'Urbanist_700Bold', letterSpacing: 1, marginBottom: 8 },
-  desc: { fontFamily: 'Urbanist_400Regular', color: '#8E8E93', fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  desc: { fontFamily: 'Urbanist_400Regular', color: colors.textDim, fontSize: 14, lineHeight: 20, marginBottom: 16 },
   identityBox: { backgroundColor: C.surfaceElevated, padding: 12, borderRadius: 8 },
-  identityLabel: { color: '#8E8E93', fontSize: 11, fontFamily: 'Urbanist_600SemiBold', letterSpacing: 0.5, marginBottom: 4 },
-  identityValue: { color: '#FFFFFF', fontSize: 14, fontFamily: 'Urbanist_500Medium', marginBottom: 12 },
+  identityLabel: { color: colors.textDim, fontSize: 11, fontFamily: 'Urbanist_600SemiBold', letterSpacing: 0.5, marginBottom: 4 },
+  identityValue: { color: colors.text, fontSize: 14, fontFamily: 'Urbanist_500Medium', marginBottom: 12 },
 
   // Status
   statusRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
@@ -787,21 +788,21 @@ const styles = StyleSheet.create({
   segment: { flexDirection: 'row', backgroundColor: C.surfaceElevated, borderRadius: 10, padding: 3, marginTop: 12 },
   segmentItem: { flex: 1, paddingVertical: 9, borderRadius: 8, alignItems: 'center' },
   segmentItemActive: { backgroundColor: C.accentDim },
-  segmentText: { color: '#8E8E93', fontSize: 14, fontFamily: 'Urbanist_600SemiBold' },
+  segmentText: { color: colors.textDim, fontSize: 14, fontFamily: 'Urbanist_600SemiBold' },
   segmentTextActive: { color: C.accent },
-  hint: { fontFamily: 'Urbanist_400Regular', color: '#8E8E93', fontSize: 12, lineHeight: 17, marginTop: 6, marginBottom: 8 },
+  hint: { fontFamily: 'Urbanist_400Regular', color: colors.textDim, fontSize: 12, lineHeight: 17, marginTop: 6, marginBottom: 8 },
   peerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
   peerRowBorder: { borderTopWidth: 1, borderTopColor: C.separator },
-  peerName: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Urbanist_600SemiBold' },
-  peerMeta: { fontFamily: 'Urbanist_400Regular', color: '#8E8E93', fontSize: 12, marginTop: 2 },
+  peerName: { color: colors.text, fontSize: 15, fontFamily: 'Urbanist_600SemiBold' },
+  peerMeta: { fontFamily: 'Urbanist_400Regular', color: colors.textDim, fontSize: 12, marginTop: 2 },
   peerStatus: { fontSize: 12, fontFamily: 'Urbanist_700Bold', textTransform: 'uppercase' },
   gossipStatus: { color: C.teal, fontSize: 14, fontFamily: 'Urbanist_600SemiBold' },
 
   // Input
-  inputLabel: { color: '#8E8E93', fontSize: 11, fontFamily: 'Urbanist_600SemiBold', letterSpacing: 0.5, marginBottom: 6 },
+  inputLabel: { color: colors.textDim, fontSize: 11, fontFamily: 'Urbanist_600SemiBold', letterSpacing: 0.5, marginBottom: 6 },
   input: {
     backgroundColor: C.surfaceElevated,
-    color: '#FFFFFF',
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
     paddingHorizontal: 16,
@@ -816,24 +817,24 @@ const styles = StyleSheet.create({
 
   // Buttons
   actionsContainer: { marginBottom: 12 },
-  simulatorLabel: { color: '#8E8E93', fontSize: 12, fontFamily: 'Urbanist_600SemiBold', letterSpacing: 0.5, marginBottom: 8, marginTop: 4 },
+  simulatorLabel: { color: colors.textDim, fontSize: 12, fontFamily: 'Urbanist_600SemiBold', letterSpacing: 0.5, marginBottom: 8, marginTop: 4 },
   button: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   connectBtn: { backgroundColor: C.blue },
   syncBtn: { backgroundColor: C.accent },
   disconnectBtn: { backgroundColor: C.red },
   broadcastBtn: { backgroundColor: C.blue },
   peerButtons: { flexDirection: 'row', gap: 8 },
-  peerBtn: { backgroundColor: '#2E2E33', flex: 1 },
+  peerBtn: { backgroundColor: colors.border, flex: 1 },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Urbanist_600SemiBold' },
+  buttonText: { color: colors.text, fontSize: 15, fontFamily: 'Urbanist_600SemiBold' },
 
   // Console
-  consoleContainer: { flex: 1, backgroundColor: '#0E0E10', borderRadius: 12, borderWidth: 1, borderColor: '#2E2E33', overflow: 'hidden' },
-  consoleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1C1C1F', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#2E2E33' },
-  consoleTitle: { color: '#8E8E93', fontSize: 11, fontFamily: 'Urbanist_700Bold', letterSpacing: 1 },
+  consoleContainer: { flex: 1, backgroundColor: colors.bg, borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  consoleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
+  consoleTitle: { color: colors.textDim, fontSize: 11, fontFamily: 'Urbanist_700Bold', letterSpacing: 1 },
   clearText: { color: C.accent, fontSize: 13, fontFamily: 'Urbanist_500Medium' },
   consoleScroll: { flex: 1, padding: 12 },
   consoleContent: { paddingBottom: 20 },
-  logText: { color: '#00FF00', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 11, marginBottom: 6, lineHeight: 16 },
-  logTextEmpty: { fontFamily: 'Urbanist_400Regular', color: '#8E8E93', fontStyle: 'italic', fontSize: 12 },
+  logText: { color: colors.accent, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 11, marginBottom: 6, lineHeight: 16 },
+  logTextEmpty: { fontFamily: 'Urbanist_400Regular', color: colors.textDim, fontStyle: 'italic', fontSize: 12 },
 });

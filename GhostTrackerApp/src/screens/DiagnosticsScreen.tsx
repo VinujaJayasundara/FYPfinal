@@ -43,19 +43,20 @@ import {
   lastRunRawGpsCsv,
   type BatteryRunSummary,
 } from '../data/database';
+import { colors } from '../theme/tokens';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const APP_VERSION: string = require('../../app.json').expo.version;
 
 const C = {
-  bg: '#0E0E10',
-  surface: '#1C1C1F',
-  separator: '#2E2E33',
-  accent: '#C6F432',
-  amber: '#FF9F0A',
-  red: '#FF3B30',
-  text: '#FFFFFF',
-  dim: '#8E8E93',
+  bg: colors.bg,
+  surface: colors.surface,
+  separator: colors.border,
+  accent: colors.accent,
+  amber: colors.textDim,
+  red: colors.danger,
+  text: colors.text,
+  dim: colors.textDim,
 };
 
 const now: () => number =
@@ -403,10 +404,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginVertical: 4,
   },
-  badgePhone: { backgroundColor: '#C6F43230', color: C.accent },
-  badgeEmu: { backgroundColor: '#FF9F0A30', color: C.amber },
+  badgePhone: { backgroundColor: colors.accent + '30', color: C.accent },
+  badgeEmu: { backgroundColor: colors.textDim + '30', color: C.amber },
   buttons: { flexDirection: 'row', gap: 10, marginTop: 10 },
-  button: { flex: 1, backgroundColor: '#2A2A2E', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  button: { flex: 1, backgroundColor: colors.elevated, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   buttonText: { color: C.accent, fontSize: 13, fontFamily: 'Urbanist_700Bold', letterSpacing: 1 },
   busy: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
   statsRow: { marginTop: 6 },

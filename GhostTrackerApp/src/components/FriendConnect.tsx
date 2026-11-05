@@ -15,16 +15,18 @@ import { useBluetooth } from '../context/BluetoothContext';
 import { useRace, RACE_COLOR, RACE_SYMBOL } from '../context/RaceContext';
 import { RaceDistancePicker } from './RaceUI';
 import type { BlePeer } from '../core/BluetoothSync';
+import { colors } from '../theme/tokens';
+import { Button, glassFill } from './ui';
 
 const C = {
-  surface: '#1C1C1F',
-  elevated: '#2A2A2E',
-  separator: '#2E2E33',
-  accent: '#C6F432',
-  amber: '#FF9F0A',
-  blue: '#0A84FF',
-  red: '#FF3B30',
-  muted: '#8E8E93',
+  surface: colors.surface,
+  elevated: colors.elevated,
+  separator: colors.border,
+  accent: colors.accent,
+  amber: colors.textDim,
+  blue: colors.peer,
+  red: colors.danger,
+  muted: colors.textDim,
 };
 
 export function FriendConnectButton() {
@@ -36,8 +38,8 @@ export function FriendConnectButton() {
   const paired = bt.peers.filter(p => p.pairing === 'paired');
   const label =
     paired.length > 0
-      ? `👥 Connected with ${paired.map(p => p.alias ?? 'friend').join(', ')}`
-      : '👥  Connect with a friend · sync or race';
+      ? `Connected with ${paired.map(p => p.alias ?? 'friend').join(', ')}`
+      : 'Connect with a friend · sync or race';
 
   const openPanel = async () => {
     const ready = await bt.prepare();
@@ -115,19 +117,18 @@ export function FriendConnectButton() {
 
             <View style={styles.footer}>
               {bt.running && (
-                <TouchableOpacity
-                  style={[styles.footerBtn, { borderColor: C.red }]}
+                <Button
+                  label="Turn off sync"
+                  variant="danger"
+                  size="sm"
+                  style={styles.footerBtn}
                   onPress={async () => {
                     await bt.stop();
                     setOpen(false);
                   }}
-                >
-                  <Text style={[styles.footerText, { color: C.red }]}>Turn off sync</Text>
-                </TouchableOpacity>
+                />
               )}
-              <TouchableOpacity style={styles.footerBtn} onPress={() => setOpen(false)}>
-                <Text style={styles.footerText}>Done</Text>
-              </TouchableOpacity>
+              <Button label="Done" variant="secondary" size="sm" style={styles.footerBtn} onPress={() => setOpen(false)} />
             </View>
           </View>
         </View>
@@ -147,23 +148,17 @@ function PeerRow({ peer, first, onRaceSet }: { peer: BlePeer; first: boolean; on
   let action: React.ReactNode;
   if (peer.pairing === 'paired') {
     action = (
-      <TouchableOpacity style={[styles.action, { borderColor: C.accent }]} onPress={() => bt.unpair(peer.deviceId!)}>
-        <Text style={[styles.actionText, { color: C.accent }]}>Connected ✓</Text>
-      </TouchableOpacity>
+      <Button label="Connected" icon="checkmark" variant="secondary" size="sm" onPress={() => bt.unpair(peer.deviceId!)} />
     );
   } else if (peer.pairing === 'invited-out') {
-    action = <Text style={[styles.actionText, { color: C.amber }]}>Waiting for {name}…</Text>;
+    action = <Text style={[styles.actionText, { color: C.muted }]}>Waiting for {name}…</Text>;
   } else if (peer.pairing === 'invited-in') {
     action = (
-      <TouchableOpacity style={[styles.action, styles.actionFilled]} onPress={() => bt.accept(peer.deviceId!)}>
-        <Text style={[styles.actionText, { color: '#000' }]}>Accept</Text>
-      </TouchableOpacity>
+      <Button label="Accept" size="sm" onPress={() => bt.accept(peer.deviceId!)} />
     );
   } else if (ready) {
     action = (
-      <TouchableOpacity style={[styles.action, { borderColor: C.blue }]} onPress={() => bt.invite(peer.deviceId!)}>
-        <Text style={[styles.actionText, { color: C.blue }]}>Invite</Text>
-      </TouchableOpacity>
+      <Button label="Invite" size="sm" onPress={() => bt.invite(peer.deviceId!)} />
     );
   } else {
     action = <Text style={[styles.actionText, { color: C.muted }]}>Connecting…</Text>;
@@ -180,12 +175,7 @@ function PeerRow({ peer, first, onRaceSet }: { peer: BlePeer; first: boolean; on
           </Text>
         </View>
         {peer.pairing === 'paired' && !raceBusy && (
-          <TouchableOpacity
-            style={[styles.action, { borderColor: RACE_COLOR, marginRight: 8 }]}
-            onPress={() => setPicking(p => !p)}
-          >
-            <Text style={[styles.actionText, { color: RACE_COLOR }]}>{RACE_SYMBOL} Race</Text>
-          </TouchableOpacity>
+          <Button label="Race" icon="flag-outline" variant="secondary" size="sm" style={{ marginRight: 8 }} onPress={() => setPicking(p => !p)} />
         )}
         {action}
       </View>
@@ -212,15 +202,15 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 18,
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(191, 90, 242, 0.35)', // friend / race colour
-    backgroundColor: 'rgba(28, 28, 31, 0.86)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+    backgroundColor: colors.overlay,
     alignItems: 'center',
   },
-  buttonPaired: { borderColor: '#BF5AF2', backgroundColor: 'rgba(191, 90, 242, 0.16)' },
-  buttonText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Urbanist_700Bold', letterSpacing: 0.5 },
+  buttonPaired: { ...glassFill('green'), backgroundColor: colors.glass, borderColor: colors.hairline },
+  buttonText: { color: colors.text, fontSize: 15, fontFamily: 'Urbanist_700Bold', letterSpacing: 0.5 },
   buttonSub: { fontFamily: 'Urbanist_400Regular', color: C.muted, fontSize: 12, marginTop: 4 },
-  overlay: { flex: 1, backgroundColor: '#0E0E10AA', justifyContent: 'flex-end' },
+  overlay: { flex: 1, backgroundColor: colors.bg + 'AA', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: C.surface,
     borderTopLeftRadius: 28,
@@ -228,24 +218,14 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 32,
   },
-  title: { color: '#FFFFFF', fontSize: 20, fontFamily: 'Urbanist_800ExtraBold', marginBottom: 6 },
+  title: { color: colors.text, fontSize: 20, fontFamily: 'Urbanist_800ExtraBold', marginBottom: 6 },
   sub: { fontFamily: 'Urbanist_400Regular', color: C.muted, fontSize: 13, lineHeight: 18, marginBottom: 14 },
   row: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   peer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
   peerBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.separator },
-  peerName: { color: '#FFFFFF', fontSize: 16, fontFamily: 'Urbanist_700Bold' },
+  peerName: { color: colors.text, fontSize: 16, fontFamily: 'Urbanist_700Bold' },
   peerMeta: { fontFamily: 'Urbanist_400Regular', color: C.muted, fontSize: 12, marginTop: 2 },
-  action: { borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 },
-  actionFilled: { backgroundColor: C.accent, borderColor: C.accent },
   actionText: { fontSize: 13, fontFamily: 'Urbanist_700Bold' },
   footer: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 18 },
-  footerBtn: {
-    borderWidth: 1,
-    borderColor: C.separator,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    marginLeft: 10,
-  },
-  footerText: { color: '#FFFFFF', fontWeight: '700' },
+  footerBtn: { marginLeft: 10 },
 });

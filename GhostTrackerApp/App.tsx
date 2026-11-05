@@ -71,7 +71,7 @@ import {
   Urbanist_800ExtraBold,
 } from '@expo-google-fonts/urbanist';
 import { colors, fonts } from './src/theme/tokens';
-import { ScreenHeader } from './src/components/ui';
+import { IconButton, Pill, ScreenHeader, glassFill } from './src/components/ui';
 
 // ── Design Tokens ─────────────────────────────────────────
 const C = {
@@ -81,16 +81,16 @@ const C = {
   separator: colors.border,
   accent: colors.accent,
   accentDim: colors.accentDim,
-  teal: '#00D4AA',
-  red: '#FF3B30',
-  amber: '#FF9F0A',
-  blue: '#0A84FF',
-  gold: '#FFD60A',
-  silver: '#8E8E93',
-  bronze: '#AC8E68',
-  textPrimary: '#FFFFFF',
-  textSecondary: '#8E8E93',
-  textTertiary: '#636366',
+  teal: colors.accent,
+  red: colors.danger,
+  amber: colors.textDim,
+  blue: colors.peer,
+  gold: colors.accent,
+  silver: colors.textDim,
+  bronze: colors.textDim,
+  textPrimary: colors.text,
+  textSecondary: colors.textDim,
+  textTertiary: colors.textFaint,
 };
 
 // ── Tab Icon Components ───────────────────────────────────
@@ -203,8 +203,8 @@ export default function App() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
-        <ActivityIndicator size="large" color="#C6F432" />
-        <Text style={{ fontFamily: 'Urbanist_400Regular', color: '#8E8E93', marginTop: 16, fontSize: 12, letterSpacing: 2 }}>
+        <ActivityIndicator size="large" color={colors.accent} />
+        <Text style={{ fontFamily: 'Urbanist_400Regular', color: colors.textDim, marginTop: 16, fontSize: 12, letterSpacing: 2 }}>
           INITIALIZING...
         </Text>
       </View>
@@ -301,9 +301,10 @@ function AppContent() {
           style={[styles.content, { display: activeTab === 'sync' ? 'flex' : 'none' }]}
           showsVerticalScrollIndicator={false}
         >
-          <TouchableOpacity onPress={() => setActiveTab('profile')} style={{ paddingVertical: 8, marginTop: 32 }}>
-            <Text style={{ color: C.accent, fontSize: 16, fontFamily: fonts.semibold }}>‹ Back · Sync log (debug)</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 32, marginBottom: 8 }}>
+            <IconButton icon="chevron-back" onPress={() => setActiveTab('profile')} accessibilityLabel="Back to profile" />
+            <Text style={{ color: C.textPrimary, fontSize: 16, fontFamily: fonts.semibold }}>Sync log (debug)</Text>
+          </View>
           <SyncTab />
           <View style={{ height: 100 }} />
         </ScrollView>
@@ -370,7 +371,7 @@ function LeaderboardTab() {
   const { dbVersion } = useRun();
   const [rankBy, setRankBy] = useState<'improvement' | 'npi'>('npi');
   const [dbEntries, setDbEntries] = useState<DBLeaderboardEntry[]>([]);
-  const rankColors = [C.gold, C.silver, C.bronze];
+  const rankColors = [C.accent, C.textSecondary, C.textTertiary];
 
   useEffect(() => {
     (async () => {
@@ -396,22 +397,8 @@ function LeaderboardTab() {
       <ScreenHeader eyebrow="You and the friends you've synced with" title="Leaderboard" />
       {/* Toggle Buttons */}
       <View style={styles.rankToggle}>
-        <TouchableOpacity
-          style={[styles.rankToggleBtn, rankBy === 'npi' && styles.rankToggleBtnActive]}
-          onPress={() => setRankBy('npi')}
-        >
-          <Text style={[styles.rankToggleText, rankBy === 'npi' && styles.rankToggleTextActive]}>
-            NPI Ranked
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.rankToggleBtn, rankBy === 'improvement' && styles.rankToggleBtnActive]}
-          onPress={() => setRankBy('improvement')}
-        >
-          <Text style={[styles.rankToggleText, rankBy === 'improvement' && styles.rankToggleTextActive]}>
-            RII Ranked
-          </Text>
-        </TouchableOpacity>
+        <Pill label="NPI ranked" active={rankBy === 'npi'} onPress={() => setRankBy('npi')} style={styles.rankToggleBtn} />
+        <Pill label="RII ranked" active={rankBy === 'improvement'} onPress={() => setRankBy('improvement')} style={styles.rankToggleBtn} />
       </View>
 
       {/* Connected races (win/loss, best times) */}
@@ -441,14 +428,14 @@ function LeaderboardTab() {
                   </Text>
                 </View>
                 <View style={styles.leaderRight}>
-                  <Text style={[styles.leaderNPI, { color: npiStatus.color }]}>
+                  <Text style={[styles.leaderNPI, { color: colors.npi }]}>
                     NPI {formatNPI(entry.npi_score || 0.0)}
                   </Text>
                   <Text style={styles.leaderRII}>
                     RII {entry.rii_score.toFixed(3)}
                   </Text>
-                  <Text style={[styles.leaderNPILabel, { color: npiStatus.color }]}>
-                    {npiStatus.emoji} {npiStatus.label}
+                  <Text style={[styles.leaderNPILabel, { color: C.textSecondary }]}>
+                    {npiStatus.label}
                   </Text>
                 </View>
               </View>
@@ -674,7 +661,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginTop: 2,
     letterSpacing: 1,
   },
-  improveBadge: { fontSize: 10, color: C.blue, fontFamily: 'Urbanist_600SemiBold', marginTop: 2 },
+  improveBadge: { fontSize: 11, color: C.textSecondary, fontFamily: 'Urbanist_600SemiBold', marginTop: 2 },
 
   // Ghost Tab
   ghostHeader: {
@@ -694,7 +681,7 @@ const styles = StyleSheet.create({
   ghostDetail: { fontFamily: 'Urbanist_400Regular', fontSize: 11, color: C.textTertiary, marginTop: 2 },
   vsText: { fontSize: 14, fontFamily: 'Urbanist_800ExtraBold', color: C.textTertiary },
 
-  riiResultCard: { alignItems: 'center', borderWidth: 1, borderColor: C.accent + '30' },
+  riiResultCard: { alignItems: 'center', ...glassFill('green'), backgroundColor: colors.glass, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
   riiResultLabel: {
     fontSize: 11, color: C.textSecondary, letterSpacing: 2, fontFamily: 'Urbanist_600SemiBold',
   },
@@ -721,25 +708,12 @@ const styles = StyleSheet.create({
   rankToggle: {
     flexDirection: 'row', gap: 8, marginBottom: 12,
   },
-  rankToggleBtn: {
-    flex: 1, paddingVertical: 10, borderRadius: 10,
-    backgroundColor: C.surface, alignItems: 'center',
-    borderWidth: 1.5, borderColor: 'transparent',
-  },
-  rankToggleBtnActive: {
-    borderColor: C.accent, backgroundColor: C.accentDim,
-  },
-  rankToggleText: {
-    fontSize: 13, fontFamily: 'Urbanist_600SemiBold', color: C.textSecondary,
-  },
-  rankToggleTextActive: {
-    color: C.accent,
-  },
+  rankToggleBtn: { flex: 1, alignItems: 'center' },
   leaderRow: {
-    backgroundColor: C.surface, borderRadius: 12, padding: 14, flexDirection: 'row',
+    backgroundColor: C.surface, borderRadius: 20, padding: 14, flexDirection: 'row',
     alignItems: 'center', marginBottom: 8, gap: 12,
   },
-  leaderRowFirst: { borderWidth: 1, borderColor: C.gold + '40' },
+  leaderRowFirst: { ...glassFill('green'), backgroundColor: colors.glass, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
   leaderRankContainer: { width: 36, alignItems: 'center' },
   rankDot: {
     width: 28, height: 28, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
@@ -756,7 +730,7 @@ const styles = StyleSheet.create({
   leaderNPI: { fontSize: 16, fontWeight: '700', fontFamily: 'Urbanist_700Bold' },
   leaderImprove: { fontSize: 18, fontWeight: '700', fontFamily: 'Urbanist_700Bold' },
   leaderRII: {
-    fontSize: 11, color: C.teal, fontFamily: 'Urbanist_700Bold', marginTop: 2,
+    fontSize: 11, color: C.textSecondary, fontFamily: 'Urbanist_700Bold', marginTop: 2,
   },
   leaderNPILabel: {
     fontSize: 10, fontFamily: 'Urbanist_600SemiBold', marginTop: 2,

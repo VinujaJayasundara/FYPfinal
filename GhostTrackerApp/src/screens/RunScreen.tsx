@@ -54,7 +54,7 @@ import {
 } from '../components/RunMap';
 import OfflineMapButton from '../components/OfflineMapButton';
 import RunScores from '../components/RunScores';
-import { Card, IconCircle, T } from '../components/ui';
+import { Button, Card, Icon, IconButton, IconCircle, T, glassFill } from '../components/ui';
 import { colors, fonts, radius, space } from '../theme/tokens';
 import { CALIBRATION_RUNS } from '../../../GhostTracker/src/core/fairness/calibration';
 import { SOLO_COLOR } from '../theme/runColors';
@@ -272,7 +272,7 @@ function IdleView({
       <View style={styles.preTop}>
         <Card tone="overlay" style={styles.preTopCard}>
           <IconCircle size={44} color={race ? colors.peer : colors.accent}>
-            <Text style={{ fontSize: 20 }}>{race ? '🔗' : '🏃'}</Text>
+            <Icon name={race ? 'link' : 'walk-outline'} size={22} color={colors.onAccent} />
           </IconCircle>
           <View style={{ flex: 1 }}>
             <T variant="title" numberOfLines={1}>
@@ -317,9 +317,7 @@ function IdleView({
             </T>
             <OfflineMapButton location={initialLocation} inline />
           </Card>
-          <TouchableOpacity style={styles.preStart} onPress={onStart} activeOpacity={0.85} accessibilityLabel="Start run">
-            <Text style={styles.preStartText}>START</Text>
-          </TouchableOpacity>
+          <Button label="Start" icon="play" onPress={onStart} accessibilityLabel="Start run" style={styles.preStart} />
         </View>
       </ScrollView>
 
@@ -337,7 +335,7 @@ function IdleView({
           >
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>⚡ P2P COMPETITION</Text>
+                <Text style={styles.modalTitle}>P2P COMPETITION</Text>
                 <TouchableOpacity onPress={() => competition.setShowSyncModal(false)}>
                   <Text style={styles.modalClose}>✕</Text>
                 </TouchableOpacity>
@@ -356,11 +354,11 @@ function IdleView({
                     value={competition.serverAddress}
                     onChangeText={competition.setServerAddress}
                     placeholder="172.20.10.4:8080"
-                    placeholderTextColor="#8E8E93"
+                    placeholderTextColor={colors.textDim}
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="url"
-                    selectionColor="#C6F432"
+                    selectionColor={colors.accent}
                   />
                   <TouchableOpacity
                     style={[styles.modalConnectBtn, competition.p2pStatus === 'connecting' && { opacity: 0.5 }]}
@@ -371,7 +369,7 @@ function IdleView({
                     disabled={competition.p2pStatus === 'connecting'}
                   >
                     <Text style={styles.modalConnectBtnText}>
-                      {competition.p2pStatus === 'connecting' ? '⏳ Connecting...' : '🔗 Connect to Relay'}
+                      {competition.p2pStatus === 'connecting' ? 'Connecting…' : 'Connect to relay'}
                     </Text>
                   </TouchableOpacity>
                   {competition.p2pStatus === 'error' && (
@@ -380,7 +378,7 @@ function IdleView({
                 </>
               ) : (
                 <>
-                  <Text style={styles.nearbyTitle}>📡 NEARBY DEVICES</Text>
+                  <Text style={styles.nearbyTitle}>NEARBY DEVICES</Text>
 
                   {competition.discoveredPeers.length === 0 ? (
                     <View style={styles.scanningBox}>
@@ -395,7 +393,7 @@ function IdleView({
                       <View key={peer.deviceId} style={styles.peerCard}>
                         <View style={styles.peerCardDot} />
                         <View style={styles.peerCardInfo}>
-                          <Text style={styles.peerCardName}>📱 {peer.alias}</Text>
+                          <Text style={styles.peerCardName}>{peer.alias}</Text>
                           <Text style={styles.peerCardStatus}>Connected · Ready to race</Text>
                         </View>
                       </View>
@@ -410,7 +408,7 @@ function IdleView({
                         onStart();
                       }}
                     >
-                      <Text style={styles.modalStartRaceBtnText}>🏁 START RACE</Text>
+                      <Text style={styles.modalStartRaceBtnText}>START RACE</Text>
                     </TouchableOpacity>
                   )}
 
@@ -500,7 +498,7 @@ function RunningView({
           ? `${Math.abs(ghostDelta).toFixed(1)} s ahead`
           : `${ghostDelta.toFixed(1)} s behind`;
   const ghostLeadColor =
-    ghostDelta === null || run.ghostFinished ? '#888' : ghostDelta <= 0 ? '#C6F432' : '#FF3B30';
+    ghostDelta === null || run.ghostFinished ? colors.textDim : ghostDelta <= 0 ? colors.accent : colors.textDim;
 
   // Live RII against the PB pace on this route
   const liveRII =
@@ -518,7 +516,7 @@ function RunningView({
   const peerLeadText = peerLead >= 0
     ? `+${Math.round(peerLead)}m ahead`
     : `${Math.round(Math.abs(peerLead))}m behind`;
-  const peerLeadColor = peerLead >= 0 ? '#C6F432' : '#FF3B30';
+  const peerLeadColor = peerLead >= 0 ? colors.accent : colors.danger;
 
   // Auto-follow camera (peers share no coordinates, so only the local runner is followed)
   useEffect(() => {
@@ -576,9 +574,7 @@ function RunningView({
         </View>
 
         {!followCamera && Platform.OS !== 'web' && (
-          <TouchableOpacity style={styles.recenterBtn} onPress={() => setFollowCamera(true)}>
-            <View style={styles.recenterIcon} />
-          </TouchableOpacity>
+          <IconButton icon="locate" onPress={() => setFollowCamera(true)} accessibilityLabel="Re-centre map" style={styles.recenterBtn} />
         )}
 
         {hasGhost && (
@@ -624,9 +620,7 @@ function RunningView({
         )}
 
         <View style={styles.stopRow}>
-          <TouchableOpacity style={styles.stopButton} onPress={onStop}>
-            <View style={styles.stopInner} />
-          </TouchableOpacity>
+          <Button label="Stop run" icon="stop" variant="danger" onPress={onStop} style={styles.stopButton} />
         </View>
       </View>
     </View>
@@ -749,13 +743,13 @@ function FinishedView({
           </View>
         </View>
         {/* Elevation row */}
-        <View style={[styles.summaryRow, { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#2E2E33' }]}>
+        <View style={[styles.summaryRow, { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }]}>
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { fontFamily: 'Urbanist_400Regular', color: '#C6F432', fontSize: 18 }]}>↑{Math.round(run.elevationGainM)}m</Text>
+            <Text style={[styles.summaryValue, { fontFamily: 'Urbanist_400Regular', color: colors.accent, fontSize: 18 }]}>↑{Math.round(run.elevationGainM)}m</Text>
             <Text style={styles.summaryLabel}>Elev Gain</Text>
           </View>
           <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { fontFamily: 'Urbanist_400Regular', color: '#FF3B30', fontSize: 18 }]}>↓{Math.round(run.elevationLossM)}m</Text>
+            <Text style={[styles.summaryValue, { fontFamily: 'Urbanist_400Regular', color: colors.danger, fontSize: 18 }]}>↓{Math.round(run.elevationLossM)}m</Text>
             <Text style={styles.summaryLabel}>Elev Loss</Text>
           </View>
           <View style={styles.summaryItem}>
@@ -785,13 +779,13 @@ function FinishedView({
             <Text style={styles.gpsStatLabel}>Total</Text>
           </View>
           <View style={styles.gpsStatItem}>
-            <Text style={[styles.gpsStatValue, { color: '#C6F432' }]}>
+            <Text style={[styles.gpsStatValue, { color: colors.accent }]}>
               {run.validPoints.length}
             </Text>
             <Text style={styles.gpsStatLabel}>Valid</Text>
           </View>
           <View style={styles.gpsStatItem}>
-            <Text style={[styles.gpsStatValue, { color: '#FF3B30' }]}>
+            <Text style={[styles.gpsStatValue, { color: colors.danger }]}>
               {run.filteredCount}
             </Text>
             <Text style={styles.gpsStatLabel}>Filtered</Text>
@@ -812,9 +806,7 @@ function FinishedView({
         </View>
       )}
 
-      <TouchableOpacity style={styles.resetButton} onPress={onReset}>
-        <Text style={styles.resetButtonText}>NEW RUN</Text>
-      </TouchableOpacity>
+      <Button label="New run" icon="add" onPress={onReset} style={styles.resetButton} />
 
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -826,43 +818,43 @@ function FinishedView({
 // ═══════════════════════════════════════════════════════════
 
 const darkMapStyle = [
-  { elementType: 'geometry', stylers: [{ color: '#0a0e1a' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0a0e1a' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#64748b' }] },
+  { elementType: 'geometry', stylers: [{ color: colors.bg }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: colors.bg }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: colors.textFaint }] },
   {
     featureType: 'road',
     elementType: 'geometry',
-    stylers: [{ color: '#1a1f35' }],
+    stylers: [{ color: colors.surface }],
   },
   {
     featureType: 'road',
     elementType: 'geometry.stroke',
-    stylers: [{ color: '#2a3050' }],
+    stylers: [{ color: colors.elevated }],
   },
   {
     featureType: 'road.highway',
     elementType: 'geometry',
-    stylers: [{ color: '#2a3050' }],
+    stylers: [{ color: colors.elevated }],
   },
   {
     featureType: 'water',
     elementType: 'geometry',
-    stylers: [{ color: '#0f1729' }],
+    stylers: [{ color: colors.surface }],
   },
   {
     featureType: 'poi',
     elementType: 'geometry',
-    stylers: [{ color: '#111827' }],
+    stylers: [{ color: colors.surface }],
   },
   {
     featureType: 'poi.park',
     elementType: 'geometry',
-    stylers: [{ color: '#0f1f15' }],
+    stylers: [{ color: colors.surface }],
   },
   {
     featureType: 'transit',
     elementType: 'geometry',
-    stylers: [{ color: '#111827' }],
+    stylers: [{ color: colors.surface }],
   },
   {
     featureType: 'poi',
@@ -890,14 +882,8 @@ const styles = StyleSheet.create({
   preStatus: { flex: 1, justifyContent: 'center' },
   preStatusLine: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
   gpsDot: { width: 10, height: 10, borderRadius: 5 },
-  preStart: {
-    width: 120,
-    borderRadius: radius.lg,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 120,
-  },
+  // shared Button, just bigger: the main action of the screen
+  preStart: { width: 120, height: undefined, minHeight: 120, flexDirection: 'column' },
   preStartText: { fontFamily: fonts.extrabold, fontSize: 20, letterSpacing: 1.5, color: colors.onAccent },
   // ── IDLE ──────────────────────────────────────────────
   idleContainer: {
@@ -908,7 +894,7 @@ const styles = StyleSheet.create({
   },
   idleMapOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: colors.scrim,
   },
   idleScroll: {
     flex: 1,
@@ -924,14 +910,14 @@ const styles = StyleSheet.create({
   idleTitle: {
     fontSize: 32,
     fontFamily: 'Urbanist_400Regular',
-    color: '#FFFFFF',
+    color: colors.text,
     marginBottom: 8,
     letterSpacing: 3,
   },
   idleSub: {
     fontFamily: 'Urbanist_400Regular',
     fontSize: 14,
-    color: '#8E8E93',
+    color: colors.textDim,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -940,10 +926,10 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: '#C6F432',
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#C6F432',
+    shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 30,
@@ -952,7 +938,7 @@ const styles = StyleSheet.create({
   startButtonText: {
     fontSize: 22,
     fontFamily: 'Urbanist_700Bold',
-    color: '#0E0E10',
+    color: colors.bg,
     letterSpacing: 3,
   },
   infoRow: {
@@ -965,18 +951,18 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#2E2E33',
+    borderColor: colors.border,
   },
   infoPillText: {
     fontSize: 10,
-    color: '#8E8E93',
+    color: colors.textDim,
     fontFamily: 'Urbanist_600SemiBold',
     letterSpacing: 1,
   },
   locationReady: {
     marginTop: 24,
     fontSize: 11,
-    color: '#C6F432',
+    color: colors.accent,
     letterSpacing: 1,
     fontFamily: 'Urbanist_500Medium',
   },
@@ -991,15 +977,14 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: 'rgba(28, 28, 30, 0.85)',
+    backgroundColor: colors.overlay,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#2E2E33',
+    borderColor: colors.border,
     zIndex: 10,
   },
   syncButtonConnected: {
-    borderColor: '#C6F43250',
-    backgroundColor: 'rgba(0, 255, 135, 0.08)',
+    ...glassFill('green'),
   },
   syncDot: {
     width: 8,
@@ -1009,18 +994,18 @@ const styles = StyleSheet.create({
   syncButtonText: {
     fontSize: 12,
     fontFamily: 'Urbanist_700Bold',
-    color: '#8E8E93',
+    color: colors.textDim,
     letterSpacing: 1,
   },
 
   // ── PEER DISCOVERY MODAL ──────────────────────────────
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: colors.scrim,
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1C1C1F',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -1035,63 +1020,63 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontFamily: 'Urbanist_700Bold',
-    color: '#FFFFFF',
+    color: colors.text,
   },
   modalClose: {
     fontFamily: 'Urbanist_400Regular',
     fontSize: 22,
-    color: '#8E8E93',
+    color: colors.textDim,
     padding: 4,
   },
   modalDesc: {
     fontFamily: 'Urbanist_400Regular',
     fontSize: 14,
-    color: '#8E8E93',
+    color: colors.textDim,
     lineHeight: 20,
     marginBottom: 20,
   },
   modalInputLabel: {
     fontSize: 11,
     fontFamily: 'Urbanist_600SemiBold',
-    color: '#8E8E93',
+    color: colors.textDim,
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   modalInput: {
-    backgroundColor: '#2A2A2E',
-    color: '#FFFFFF',
+    backgroundColor: colors.elevated,
+    color: colors.text,
     fontSize: 16,
     fontWeight: '600',
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#C6F432',
+    borderColor: colors.accent,
     marginBottom: 16,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   modalConnectBtn: {
-    backgroundColor: '#0A84FF',
+    backgroundColor: colors.accent,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 8,
   },
   modalConnectBtnText: {
-    color: '#FFFFFF',
+    color: colors.text,
     fontSize: 16,
     fontFamily: 'Urbanist_600SemiBold',
   },
   modalError: {
     fontFamily: 'Urbanist_400Regular',
-    color: '#FF3B30',
+    color: colors.danger,
     fontSize: 13,
     marginTop: 8,
     textAlign: 'center',
   },
   modalWaiting: {
     fontFamily: 'Urbanist_400Regular',
-    color: '#FF9F0A',
+    color: colors.textDim,
     fontSize: 13,
     textAlign: 'center',
     marginBottom: 12,
@@ -1101,7 +1086,7 @@ const styles = StyleSheet.create({
   nearbyTitle: {
     fontSize: 12,
     fontFamily: 'Urbanist_700Bold',
-    color: '#8E8E93',
+    color: colors.textDim,
     letterSpacing: 1,
     marginBottom: 12,
   },
@@ -1109,30 +1094,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 32,
-    backgroundColor: '#2A2A2E',
+    backgroundColor: colors.elevated,
     borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#2E2E33',
+    borderColor: colors.border,
     borderStyle: 'dashed',
   },
   scanningDots: {
     fontFamily: 'Urbanist_400Regular',
     fontSize: 24,
-    color: '#C6F432',
+    color: colors.accent,
     marginBottom: 12,
     letterSpacing: 4,
   },
   scanningText: {
     fontSize: 15,
     fontFamily: 'Urbanist_600SemiBold',
-    color: '#FFFFFF',
+    color: colors.text,
     marginBottom: 6,
   },
   scanningHint: {
     fontFamily: 'Urbanist_400Regular',
     fontSize: 13,
-    color: '#8E8E93',
+    color: colors.textDim,
     textAlign: 'center',
     paddingHorizontal: 20,
   },
@@ -1141,43 +1126,44 @@ const styles = StyleSheet.create({
   peerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2A2A2E',
+    backgroundColor: colors.elevated,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#C6F43230',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+    ...glassFill('green'),
   },
   peerCardDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#C6F432',
+    backgroundColor: colors.accent,
     marginRight: 12,
   },
   peerCardInfo: { flex: 1 },
   peerCardName: {
     fontSize: 16,
     fontFamily: 'Urbanist_700Bold',
-    color: '#FFFFFF',
+    color: colors.text,
   },
   peerCardStatus: {
     fontFamily: 'Urbanist_400Regular',
     fontSize: 12,
-    color: '#C6F432',
+    color: colors.accent,
     marginTop: 2,
   },
 
   // Modal race buttons
   modalStartRaceBtn: {
-    backgroundColor: '#C6F432',
+    backgroundColor: colors.accent,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 8,
   },
   modalStartRaceBtnText: {
-    color: '#0E0E10',
+    color: colors.bg,
     fontSize: 18,
     fontFamily: 'Urbanist_800ExtraBold',
     letterSpacing: 1,
@@ -1187,7 +1173,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalDisconnectBtnText: {
-    color: '#FF3B30',
+    color: colors.danger,
     fontSize: 14,
     fontFamily: 'Urbanist_600SemiBold',
   },
@@ -1196,11 +1182,12 @@ const styles = StyleSheet.create({
   competitionCard: {
     width: '100%',
     marginTop: 10,
-    backgroundColor: '#0A84FF15',
-    borderRadius: 14,
+    backgroundColor: colors.glass,
+    borderRadius: 20,
     padding: 14,
-    borderWidth: 1,
-    borderColor: '#0A84FF40',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+    ...glassFill('neutral'),
   },
   competitionHeader: {
     flexDirection: 'row',
@@ -1211,14 +1198,14 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#0A84FF',
+    backgroundColor: colors.peer,
     marginRight: 8,
   },
   competitionTitle: {
     flex: 1,
     fontSize: 12,
     fontFamily: 'Urbanist_700Bold',
-    color: '#0A84FF',
+    color: colors.peer,
     letterSpacing: 1,
   },
   competitionLead: {
@@ -1238,12 +1225,12 @@ const styles = StyleSheet.create({
   competitionStatValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.text,
     fontFamily: 'Urbanist_700Bold',
   },
   competitionStatLabel: {
     fontSize: 9,
-    color: '#8E8E93',
+    color: colors.textDim,
     marginTop: 2,
     fontFamily: 'Urbanist_600SemiBold',
     letterSpacing: 0.5,
@@ -1251,7 +1238,7 @@ const styles = StyleSheet.create({
   competitionDivider: {
     width: 1,
     height: 28,
-    backgroundColor: '#2E2E33',
+    backgroundColor: colors.border,
   },
   competitionNpiRow: {
     flexDirection: 'row',
@@ -1260,11 +1247,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#2E2E33',
+    borderTopColor: colors.border,
   },
   competitionNpiLabel: {
     fontSize: 11,
-    color: '#8E8E93',
+    color: colors.textDim,
     fontFamily: 'Urbanist_500Medium',
   },
   competitionNpiValue: {
@@ -1275,7 +1262,7 @@ const styles = StyleSheet.create({
   // ── RUNNING ───────────────────────────────────────────
   runContainer: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.onAccent,
   },
 
   // Running: map on top (always visible), numbers panel below
@@ -1355,40 +1342,35 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 6,
     paddingHorizontal: 14,
-    backgroundColor: 'rgba(255, 59, 48, 0.15)',
+    backgroundColor: colors.dangerDim,
     borderRadius: 20,
   },
   liveDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#FF3B30',
+    backgroundColor: colors.danger,
   },
   liveText: {
     fontSize: 10,
     fontFamily: 'Urbanist_700Bold',
-    color: '#FF3B30',
+    color: colors.danger,
     letterSpacing: 2,
   },
-  gpsCount: { fontFamily: 'Urbanist_400Regular', fontSize: 10, color: '#8E8E93', marginLeft: 4 },
+  gpsCount: { fontFamily: 'Urbanist_400Regular', fontSize: 10, color: colors.textDim, marginLeft: 4 },
 
   recenterBtn: {
     position: 'absolute',
     bottom: 30, // the map ends above the numbers panel
     right: 12,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(28, 28, 30, 0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: colors.overlay,
   },
   recenterIcon: {
     width: 14,
     height: 14,
     borderRadius: 7,
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: colors.text,
   },
 
   ghostOverlay: {
@@ -1400,11 +1382,11 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: 'rgba(28, 28, 30, 0.9)',
+    backgroundColor: colors.overlay,
     borderRadius: 16,
   },
   ghostOverlayLabel: {
-    fontSize: 10, fontFamily: 'Urbanist_700Bold', color: '#8E8E93', letterSpacing: 1,
+    fontSize: 10, fontFamily: 'Urbanist_700Bold', color: colors.textDim, letterSpacing: 1,
   },
   ghostOverlayText: { fontSize: 14, fontFamily: fonts.bold },
 
@@ -1420,25 +1402,25 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(0, 255, 135, 0.3)',
+    backgroundColor: colors.accentDim,
   },
   runnerMarkerDot: {
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#C6F432',
+    backgroundColor: colors.accent,
     borderWidth: 3,
-    borderColor: '#fff',
+    borderColor: colors.white,
   },
   ghostMarker: {
     width: 28,
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 59, 48, 0.2)',
+    backgroundColor: colors.dangerDim,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 59, 48, 0.5)',
+    borderColor: colors.danger + '80',
   },
   ghostMarkerInner: {
     flexDirection: 'row',
@@ -1448,7 +1430,7 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#FF3B30',
+    backgroundColor: colors.danger,
   },
   startMarker: {
     width: 24,
@@ -1460,9 +1442,9 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#C6F432',
+    backgroundColor: colors.accent,
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: colors.text,
   },
   finishMarker: {
     width: 24,
@@ -1474,7 +1456,7 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#FFD60A',
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1482,7 +1464,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#0E0E10',
+    backgroundColor: colors.bg,
   },
 
   // Stats panel
@@ -1506,17 +1488,17 @@ const styles = StyleSheet.create({
   mainStatValue: {
     fontSize: 72,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.text,
     fontFamily:
       Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-condensed',
-    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowColor: colors.scrim,
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
   },
   mainStatUnit: {
     fontSize: 22,
     fontFamily: 'Urbanist_400Regular',
-    color: '#636366',
+    color: colors.textFaint,
     marginLeft: 4,
   },
 
@@ -1525,29 +1507,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 12,
-    backgroundColor: 'rgba(28, 28, 30, 0.85)',
+    backgroundColor: colors.overlay,
     borderRadius: 16,
     paddingVertical: 16,
     paddingHorizontal: 8,
     width: '100%',
     borderWidth: 1,
-    borderColor: '#2E2E33',
+    borderColor: colors.border,
   },
   liveStatItem: { flex: 1, alignItems: 'center' },
   liveStatValue: {
     fontSize: 22,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: colors.text,
     fontFamily: 'Urbanist_700Bold',
   },
   liveStatLabel: {
     fontSize: 9,
-    color: '#636366',
+    color: colors.textFaint,
     marginTop: 4,
     fontFamily: 'Urbanist_600SemiBold',
     letterSpacing: 1,
   },
-  divider: { width: 1, height: 36, backgroundColor: '#2E2E33' },
+  divider: { width: 1, height: 36, backgroundColor: colors.border },
 
   // Live RII
   liveRIIBar: {
@@ -1556,14 +1538,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '100%',
     marginTop: 10,
-    backgroundColor: '#1C1C1F',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
   liveRIILeft: {},
   liveRIILabel: {
-    fontSize: 10, color: '#8E8E93', fontFamily: 'Urbanist_600SemiBold', letterSpacing: 1,
+    fontSize: 10, color: colors.textDim, fontFamily: 'Urbanist_600SemiBold', letterSpacing: 1,
   },
   liveRIIValue: { fontSize: 16, fontWeight: '700', fontFamily: 'Urbanist_700Bold', marginTop: 2 },
   ghostLeadBadge: { fontSize: 14, fontWeight: '700', fontFamily: 'Urbanist_700Bold' },
@@ -1571,7 +1553,7 @@ const styles = StyleSheet.create({
   // Splits
   splitsContainer: {
     width: '100%',
-    backgroundColor: '#1C1C1F',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     marginTop: 10,
@@ -1579,7 +1561,7 @@ const styles = StyleSheet.create({
   splitsTitle: {
     fontSize: 11,
     fontFamily: 'Urbanist_600SemiBold',
-    color: '#8E8E93',
+    color: colors.textDim,
     marginBottom: 8,
     letterSpacing: 1.5,
   },
@@ -1588,10 +1570,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 6,
   },
-  splitKm: { fontFamily: 'Urbanist_400Regular', fontSize: 13, color: '#8E8E93' },
+  splitKm: { fontFamily: 'Urbanist_400Regular', fontSize: 13, color: colors.textDim },
   splitPace: {
     fontSize: 13,
-    color: '#C6F432',
+    color: colors.accent,
     fontFamily: 'Urbanist_700Bold',
     fontWeight: '600',
   },
@@ -1601,8 +1583,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
     alignItems: 'center',
   },
-  gpsLabel: { fontSize: 10, color: '#636366', fontFamily: 'Urbanist_700Bold' },
-  gpsAccuracy: { fontFamily: 'Urbanist_400Regular', fontSize: 10, color: '#0A84FF', marginTop: 2 },
+  gpsLabel: { fontSize: 10, color: colors.textFaint, fontFamily: 'Urbanist_700Bold' },
+  gpsAccuracy: { fontFamily: 'Urbanist_400Regular', fontSize: 10, color: colors.peer, marginTop: 2 },
 
   // Stop button overlay
   stopAreaOverlay: {
@@ -1620,18 +1602,18 @@ const styles = StyleSheet.create({
     top: Platform.OS === 'ios' ? 60 : 30,
     right: 12,
     alignItems: 'flex-end',
-    backgroundColor: 'rgba(28, 28, 30, 0.9)',
+    backgroundColor: colors.overlay,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#0A84FF40',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
     zIndex: 10,
   },
   peerMapOverlayLabel: {
     fontSize: 10,
     fontFamily: 'Urbanist_700Bold',
-    color: '#0A84FF',
+    color: colors.peer,
     letterSpacing: 1,
     marginBottom: 2,
   },
@@ -1639,33 +1621,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     fontFamily: 'Urbanist_700Bold',
-    color: '#FFFFFF',
+    color: colors.text,
   },
 
   // White round control (as in the design); red square = stop. Distinct
   // from the red "recording" button in the tab bar.
-  stopButton: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-  },
+  stopButton: { alignSelf: 'stretch' },
   stopInner: {
     width: 26,
     height: 26,
-    backgroundColor: '#FF453A',
+    backgroundColor: colors.danger,
     borderRadius: 6,
   },
   stopLabelOverlay: {
     marginTop: 12,
     fontSize: 13,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.text,
     letterSpacing: 2,
-    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowColor: colors.scrim,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
@@ -1673,7 +1647,7 @@ const styles = StyleSheet.create({
   // ── FINISHED ──────────────────────────────────────────
   finishedScroll: {
     flex: 1,
-    backgroundColor: '#0E0E10',
+    backgroundColor: colors.bg,
   },
   finishedContent: {
     paddingHorizontal: 16,
@@ -1690,7 +1664,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     left: 10,
-    backgroundColor: 'rgba(28, 28, 30, 0.9)',
+    backgroundColor: colors.overlay,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
@@ -1698,7 +1672,7 @@ const styles = StyleSheet.create({
   finishedMapBadgeText: {
     fontSize: 10,
     fontFamily: 'Urbanist_700Bold',
-    color: '#C6F432',
+    color: colors.accent,
     letterSpacing: 1,
   },
   finishHeader: {
@@ -1708,12 +1682,12 @@ const styles = StyleSheet.create({
   finishTitle: {
     fontSize: 28,
     fontFamily: 'Urbanist_400Regular',
-    color: '#FFFFFF',
+    color: colors.text,
     letterSpacing: 1,
   },
   summaryCard: {
     width: '100%',
-    backgroundColor: '#1C1C1F',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 24,
     marginBottom: 12,
@@ -1723,27 +1697,28 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.text,
     fontFamily: 'Urbanist_700Bold',
   },
   summaryLabel: {
-    fontSize: 10, color: '#636366', marginTop: 4,
+    fontSize: 10, color: colors.textFaint, marginTop: 4,
     fontFamily: 'Urbanist_600SemiBold', letterSpacing: 1,
   },
 
   // RII Result
   riiResultCard: {
     width: '100%',
-    backgroundColor: '#1C1C1F',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 20,
     alignItems: 'center',
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#C6F43230',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+    ...glassFill('green'),
   },
   riiResultLabel: {
-    fontSize: 10, color: '#8E8E93', fontFamily: 'Urbanist_600SemiBold', letterSpacing: 2,
+    fontSize: 10, color: colors.textDim, fontFamily: 'Urbanist_600SemiBold', letterSpacing: 2,
   },
   riiResultValue: {
     fontSize: 48,
@@ -1751,12 +1726,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Urbanist_700Bold',
     marginVertical: 4,
   },
-  riiResultDesc: { fontFamily: 'Urbanist_400Regular', fontSize: 12, color: '#636366', marginTop: 4 },
+  riiResultDesc: { fontFamily: 'Urbanist_400Regular', fontSize: 12, color: colors.textFaint, marginTop: 4 },
 
   // GPS Stats
   gpsStatsCard: {
     width: '100%',
-    backgroundColor: '#1C1C1F',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -1764,7 +1739,7 @@ const styles = StyleSheet.create({
   gpsStatsTitle: {
     fontSize: 11,
     fontFamily: 'Urbanist_600SemiBold',
-    color: '#8E8E93',
+    color: colors.textDim,
     marginBottom: 10,
     letterSpacing: 1.5,
   },
@@ -1776,27 +1751,20 @@ const styles = StyleSheet.create({
   gpsStatValue: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.text,
     fontFamily: 'Urbanist_700Bold',
   },
   gpsStatLabel: {
     fontSize: 10,
-    color: '#636366',
+    color: colors.textFaint,
     marginTop: 2,
     fontFamily: 'Urbanist_600SemiBold',
     letterSpacing: 0.5,
   },
 
   // Reset
-  resetButton: {
-    marginTop: 8,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    backgroundColor: '#C6F432',
-    borderRadius: 12,
-    alignSelf: 'center',
-  },
+  resetButton: { marginTop: 8, alignSelf: 'stretch' },
   resetButtonText: {
-    fontSize: 14, fontFamily: 'Urbanist_700Bold', color: '#0E0E10', letterSpacing: 1,
+    fontSize: 14, fontFamily: 'Urbanist_700Bold', color: colors.bg, letterSpacing: 1,
   },
 });

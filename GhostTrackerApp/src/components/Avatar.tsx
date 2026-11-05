@@ -5,6 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { colors } from '../theme/tokens';
 
 export function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
@@ -38,6 +39,6 @@ export default function Avatar({
 }
 
 const styles = StyleSheet.create({
-  base: { backgroundColor: '#C6F43218', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  initials: { color: '#C6F432', fontWeight: '800', letterSpacing: 0.5 },
+  base: { backgroundColor: colors.accent + '18', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  initials: { color: colors.accent, fontWeight: '800', letterSpacing: 0.5 },
 });

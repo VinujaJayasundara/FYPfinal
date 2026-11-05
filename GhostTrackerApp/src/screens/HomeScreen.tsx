@@ -32,7 +32,7 @@ import { calculateRII, getRIIStatus } from '../core/algorithms';
 import { FinishedMap } from '../components/RunMap';
 import Avatar from '../components/Avatar';
 import { RunDetail } from './HistoryScreen';
-import { Card, IconCircle, SectionTitle, StatTile, T } from '../components/ui';
+import { Card, GlassCard, Icon, IconButton, IconCircle, SectionTitle, StatTile, T } from '../components/ui';
 import { colors, fonts, radius, runColor, space } from '../theme/tokens';
 
 // ── formatting ─────────────────────────────────────────────
@@ -73,7 +73,7 @@ function WeekStrip({ runs }: { runs: RunHistoryItem[] }) {
         <View key={i} style={[styles.day, d.ran && styles.dayRan, d.today && !d.ran && styles.dayToday]}>
           <Text style={[styles.dayLabel, d.ran && { color: colors.onAccent }]}>{d.label}</Text>
           <Text style={[styles.dayDate, d.ran && { color: colors.onAccent }]}>{d.date}</Text>
-          <Text style={styles.dayIcon}>{d.ran ? '👟' : ' '}</Text>
+          <View style={styles.dayIcon}>{d.ran ? <Icon name="footsteps" size={12} color={colors.onAccent} /> : null}</View>
         </View>
       ))}
     </View>
@@ -110,16 +110,17 @@ function LastRunTile({ run, onOpen }: { run: RunHistoryItem; onOpen: () => void 
       </View>
       {run.peers.length > 0 && (
         <View style={[styles.peerTag, { backgroundColor: colors.peer }]}>
-          <Text style={styles.peerTagText} numberOfLines={1}>🔗 {run.peers[0].alias}</Text>
+          <Icon name="link" size={12} color={colors.onAccent} />
+          <Text style={styles.peerTagText} numberOfLines={1}>{run.peers[0].alias}</Text>
         </View>
       )}
       <View style={styles.mapStats}>
         <View style={styles.glass}>
-          <T variant="caption">⏱ Time</T>
+          <T variant="caption">Time</T>
           <Text style={styles.glassValue}>{fmtDuration(run.durationS)}</Text>
         </View>
         <View style={styles.glass}>
-          <T variant="caption">📍 Pace</T>
+          <T variant="caption">Pace</T>
           <Text style={styles.glassValue}>{fmtPace(run.paceSPerKm)}</Text>
         </View>
       </View>
@@ -137,7 +138,7 @@ function NpiTrendChart({ points }: { points: { npi: number }[] }) {
       <View style={styles.trendChart}>
         {points.map((p, i) => {
           const h = Math.max(3, (Math.abs(p.npi) / maxAbs) * half);
-          const color = getNPIStatus(p.npi).color;
+          const color = colors.npi;
           return (
             <View key={i} style={styles.trendCol}>
               <View style={{ height: half, justifyContent: 'flex-end' }}>
@@ -230,7 +231,7 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
           ) : (
             <Card style={[styles.mapTile, styles.centered]} onPress={onStartRun}>
               <IconCircle light size={52}>
-                <Text style={{ fontSize: 24 }}>👟</Text>
+                <Icon name="footsteps-outline" size={24} color={colors.onAccent} />
               </IconCircle>
               <T variant="label" style={{ marginTop: space.md, textAlign: 'center' }}>Your last run will show here</T>
             </Card>
@@ -242,20 +243,20 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
               <StatTile
                 label="NPI"
                 value={npi !== null ? formatNPI(npi) : '—'}
-                valueColor={npiStatus?.color}
+                valueColor={npiStatus ? colors.npi : undefined}
                 sub={
                   npiChange !== null
                     ? `${npiChange >= 0 ? '↑' : '↓'} ${Math.abs(npiChange).toFixed(2)} vs previous run`
                     : npiStatus?.label ?? 'vs the model for you'
                 }
-                subColor={npiChange !== null ? (npiChange >= 0 ? colors.good : colors.bad) : undefined}
+                subColor={npiChange !== null ? (npiChange >= 0 ? colors.accent : colors.textDim) : undefined}
               />
               <StatTile
                 label="RII"
                 value={rii !== null ? rii.toFixed(2) : '—'}
-                valueColor={riiStatus?.color}
+                valueColor={undefined}
                 sub={formatVsBaseline(vsBase)}
-                subColor={vsBase !== null ? (vsBase >= 1 ? colors.good : colors.bad) : undefined}
+                subColor={vsBase !== null ? (vsBase >= 1 ? colors.accent : colors.textDim) : undefined}
               />
             </>
           ) : (
@@ -281,7 +282,7 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
             return (
               <Card key={r.sessionId} onPress={() => setOpen(r)} style={styles.runRow}>
                 <IconCircle light size={48}>
-                  <Text style={{ fontSize: 20 }}>{peer ? '🔗' : '👟'}</Text>
+                  <Icon name={peer ? 'link' : 'footsteps-outline'} size={20} color={colors.onAccent} />
                 </IconCircle>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.runTitle}>
@@ -294,9 +295,8 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
                     {fmtWhen(r.startTime)} · {peer ? (r.raceOutcome ? `race vs ${r.peers[0].alias}` : `with ${r.peers[0].alias}`) : 'solo'}
                   </T>
                 </View>
-                <IconCircle size={38}>
-                  <Text style={{ color: runColor(peer), fontSize: 18, fontFamily: fonts.bold }}>›</Text>
-                </IconCircle>
+                {/* the card handles the tap; the chevron uses the shared icon-button look */}
+                <IconButton icon="chevron-forward" size="sm" accessibilityLabel="Open run" />
               </Card>
             );
           })}
@@ -307,10 +307,10 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
       {(races && races.races > 0) || lastFriend ? (
         <>
           <SectionTitle title="Friends" />
-          <Card style={{ borderWidth: 1, borderColor: colors.peerDim }}>
+          <GlassCard accent="neutral">
             {races && races.races > 0 && (
               <Text style={styles.friendLine}>
-                🔗 {races.races} race{races.races === 1 ? '' : 's'} · {races.wins} win{races.wins === 1 ? '' : 's'} · {races.losses} loss
+                {races.races} race{races.races === 1 ? '' : 's'} · {races.wins} win{races.wins === 1 ? '' : 's'} · {races.losses} loss
                 {races.losses === 1 ? '' : 'es'}
               </Text>
             )}
@@ -319,7 +319,7 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
                 Last synced with {lastFriend.alias ?? 'a friend'} · {fmtWhen(lastFriend.last_seen)}
               </T>
             )}
-          </Card>
+          </GlassCard>
         </>
       ) : null}
 
@@ -340,8 +340,9 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
       {/* Explainers */}
       <TouchableOpacity onPress={() => setShowExplain(v => !v)} style={styles.explainToggle} activeOpacity={0.7}>
         <T variant="label" style={{ fontFamily: fonts.semibold }}>
-          ⓘ What do NPI and RII mean? {showExplain ? '▲' : '▼'}
+          What do NPI and RII mean?
         </T>
+        <Icon name={showExplain ? 'chevron-up' : 'chevron-down'} size={16} />
       </TouchableOpacity>
       {showExplain && (
         <Card>
@@ -384,7 +385,7 @@ const styles = StyleSheet.create({
   dayToday: { borderColor: colors.accent },
   dayLabel: { fontFamily: fonts.semibold, fontSize: 11, color: colors.textDim },
   dayDate: { fontFamily: fonts.semibold, fontSize: 15, color: colors.text, marginTop: 2 },
-  dayIcon: { fontSize: 12, marginTop: 2, height: 16 },
+  dayIcon: { marginTop: 2, height: 16, alignItems: 'center', justifyContent: 'center' },
   grid: { flexDirection: 'row', gap: space.md },
   mapTile: { height: 300, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.surface },
   mapEmpty: { flex: 1, backgroundColor: colors.surface },
@@ -407,8 +408,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     maxWidth: '80%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  peerTagText: { fontFamily: fonts.bold, fontSize: 11, color: colors.white },
+  peerTagText: { fontFamily: fonts.bold, fontSize: 11, color: colors.onAccent },
   mapStats: { position: 'absolute', left: space.sm, right: space.sm, bottom: space.sm, flexDirection: 'row', gap: space.sm },
   glass: { flex: 1, backgroundColor: colors.overlay, borderRadius: radius.md, padding: space.md },
   glassValue: { fontFamily: fonts.semibold, fontSize: 18, color: colors.text, marginTop: 2, fontVariant: ['tabular-nums'] },
@@ -421,6 +425,6 @@ const styles = StyleSheet.create({
   trendBar: { width: '100%', borderRadius: 4 },
   zeroLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: colors.border },
   trendAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.sm },
-  explainToggle: { paddingVertical: space.lg, alignItems: 'center' },
+  explainToggle: { paddingVertical: space.lg, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
   explainTitle: { fontFamily: fonts.bold, marginBottom: 4 },
 });

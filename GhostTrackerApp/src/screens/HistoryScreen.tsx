@@ -22,17 +22,19 @@ import { CALIBRATION_RUNS, scoresVisibleForRun } from '../../../GhostTracker/src
 import { formatNPI, getNPIStatus } from '../core/npiEngine';
 import { FinishedMap } from '../components/RunMap';
 import RunScores from '../components/RunScores';
+import { IconButton, Pill, glassFill } from '../components/ui';
 import { PEER_COLOR, SOLO_COLOR, runColor } from '../theme/runColors';
+import { colors } from '../theme/tokens';
 
 const C = {
-  bg: '#0E0E10',
-  surface: '#1C1C1F',
-  elevated: '#2A2A2E',
-  separator: '#2E2E33',
-  text: '#FFFFFF',
-  dim: '#8E8E93',
-  faint: '#636366',
-  red: '#FF3B30',
+  bg: colors.bg,
+  surface: colors.surface,
+  elevated: colors.elevated,
+  separator: colors.border,
+  text: colors.text,
+  dim: colors.textDim,
+  faint: colors.textFaint,
+  red: colors.danger,
 };
 
 // ── Formatting ─────────────────────────────────────────────
@@ -62,22 +64,14 @@ function peerLabel(r: RunHistoryItem): string {
   if (!isPeerRun(r)) return 'SOLO';
   const race = r.peers.find(p => p.kind === 'race');
   const names = r.peers.map(p => p.alias).join(', ');
-  return race ? `🔗 RACE · ${names}` : `🔗 ${names}`;
+  return race ? `RACE · ${names}` : names;
 }
 
 // ── Filter chips ───────────────────────────────────────────
 
-function Chip({ label, active, color, onPress }: { label: string; active: boolean; color?: string; onPress: () => void }) {
-  const c = color ?? SOLO_COLOR;
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[styles.chip, active && { backgroundColor: c + '25', borderColor: c }]}
-      activeOpacity={0.8}
-    >
-      <Text style={[styles.chipText, active && { color: c }]}>{label}</Text>
-    </TouchableOpacity>
-  );
+/** Filter chip: the shared Pill (one toggle style everywhere). */
+function Chip({ label, active, onPress }: { label: string; active: boolean; color?: string; onPress: () => void }) {
+  return <Pill label={label} active={active} onPress={onPress} />;
 }
 
 const KIND_OPTIONS: { key: RunKindFilter; label: string }[] = [
@@ -112,10 +106,8 @@ export function RunDetail({ run, baselinePace, onClose }: { run: RunHistoryItem;
   return (
     <View style={styles.detail}>
       <View style={styles.detailHeader}>
-        <TouchableOpacity onPress={onClose} hitSlop={12}>
-          <Text style={styles.back}>‹ History</Text>
-        </TouchableOpacity>
-        <View style={[styles.badge, { backgroundColor: color + '25', borderColor: color }]}>
+        <IconButton icon="chevron-back" onPress={onClose} accessibilityLabel="Back to history" />
+        <View style={[styles.badge, { backgroundColor: color + '25', borderColor: 'transparent' }]}>
           <Text style={[styles.badgeText, { color }]} numberOfLines={1}>{peerLabel(run)}</Text>
         </View>
       </View>
@@ -151,7 +143,7 @@ export function RunDetail({ run, baselinePace, onClose }: { run: RunHistoryItem;
         {run.raceOutcome && (
           <Text style={[styles.raceLine, { color: PEER_COLOR }]}>
             Connected race ·{' '}
-            {run.raceOutcome === 'win' ? 'You won 🏆' : run.raceOutcome === 'loss' ? 'Lost' : run.raceOutcome === 'tie' ? 'Tie' : 'No winner'}
+            {run.raceOutcome === 'win' ? 'You won' : run.raceOutcome === 'loss' ? 'Lost' : run.raceOutcome === 'tie' ? 'Tie' : 'No winner'}
           </Text>
         )}
         {run.isPB && <Text style={styles.pbLine}>Personal best on this route</Text>}
@@ -237,7 +229,7 @@ export default function HistoryScreen() {
           const scored = scoresVisibleForRun(r.runNo);
           const npiStatus = scored && r.npi !== null ? getNPIStatus(r.npi) : null;
           return (
-            <TouchableOpacity key={r.sessionId} style={[styles.item, { borderLeftColor: color }]} onPress={() => setOpen(r)} activeOpacity={0.8}>
+            <TouchableOpacity key={r.sessionId} style={[styles.item, glassFill(isPeerRun(r) ? 'neutral' : 'green', true)]} onPress={() => setOpen(r)} activeOpacity={0.8}>
               <View style={styles.itemTop}>
                 <Text style={styles.itemDate}>{fmtDate(r.startTime)}</Text>
                 <View style={[styles.badgeSmall, { backgroundColor: color + '20' }]}>
@@ -248,7 +240,7 @@ export default function HistoryScreen() {
                 <Text style={styles.itemMain}>{fmtKm(r.distanceM)} km</Text>
                 <Text style={styles.itemSub}>{fmtDuration(r.durationS)}</Text>
                 <Text style={styles.itemSub}>{fmtPace(r.paceSPerKm)} /km</Text>
-                <Text style={[styles.itemNpi, { color: npiStatus?.color ?? C.faint }]}>
+                <Text style={[styles.itemNpi, { color: npiStatus ? colors.npi : C.faint }]}>
                   {r.runNo === null
                     ? 'too short'
                     : scored
@@ -259,7 +251,7 @@ export default function HistoryScreen() {
               {(r.isPB || r.raceOutcome) && (
                 <Text style={styles.itemTags}>
                   {r.isPB ? 'PB  ' : ''}
-                  {r.raceOutcome === 'win' ? 'Race won 🏆' : r.raceOutcome === 'loss' ? 'Race lost' : r.raceOutcome ? 'Race' : ''}
+                  {r.raceOutcome === 'win' ? 'Race won' : r.raceOutcome === 'loss' ? 'Race lost' : r.raceOutcome ? 'Race' : ''}
                 </Text>
               )}
             </TouchableOpacity>
@@ -278,16 +270,18 @@ const styles = StyleSheet.create({
   title: { color: C.text, fontSize: 26, fontFamily: 'Urbanist_800ExtraBold', marginTop: 4 },
   subtitle: { fontFamily: 'Urbanist_400Regular', color: C.dim, fontSize: 13, marginTop: 2, marginBottom: 12 },
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
-  chip: { borderWidth: 1, borderColor: C.separator, borderRadius: 24, paddingHorizontal: 12, paddingVertical: 6 },
-  chipText: { color: C.dim, fontSize: 13, fontFamily: 'Urbanist_600SemiBold' },
   empty: { backgroundColor: C.surface, borderRadius: 20, padding: 20, marginTop: 8 },
   emptyText: { fontFamily: 'Urbanist_400Regular', color: C.dim, fontSize: 14, textAlign: 'center' },
+  // Glass card: faint translucent fill, hairline light border, a sheen at
+  // the top and the run colour glowing from the top-left corner (glassFill)
   item: {
-    backgroundColor: C.surface,
-    borderRadius: 20,
-    padding: 14,
-    marginTop: 10,
-    borderLeftWidth: 4,
+    backgroundColor: colors.glass,
+    borderRadius: 24,
+    padding: 16,
+    marginTop: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+    overflow: 'hidden',
   },
   itemTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   itemDate: { fontFamily: 'Urbanist_400Regular', color: C.dim, fontSize: 13, flexShrink: 1 },
@@ -311,11 +305,10 @@ const styles = StyleSheet.create({
     borderBottomColor: C.separator,
     gap: 12,
   },
-  back: { color: SOLO_COLOR, fontSize: 17, fontFamily: 'Urbanist_600SemiBold' },
-  badge: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4, flexShrink: 1 },
+  badge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4, flexShrink: 1 },
   badgeText: { fontSize: 12, fontFamily: 'Urbanist_800ExtraBold', letterSpacing: 0.5 },
   detailDate: { color: C.text, fontSize: 18, fontFamily: 'Urbanist_700Bold', marginBottom: 12 },
-  mapBox: { height: 300, borderRadius: 24, overflow: 'hidden', backgroundColor: '#0a0e1a' },
+  mapBox: { height: 300, borderRadius: 24, overflow: 'hidden', backgroundColor: colors.bg },
   noRoute: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   noRouteText: { fontFamily: 'Urbanist_400Regular', color: C.faint, fontSize: 13 },
   statGrid: { flexDirection: 'row', backgroundColor: C.surface, borderRadius: 24, paddingVertical: 16, marginTop: 12 },

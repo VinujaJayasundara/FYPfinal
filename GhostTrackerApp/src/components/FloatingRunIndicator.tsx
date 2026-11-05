@@ -17,15 +17,17 @@ import {
 } from 'react-native';
 import { useRun } from '../context/RunContext';
 import { formatTime } from '../core/algorithms';
+import { colors } from '../theme/tokens';
+import { glassFill } from './ui';
 
 // ── Design Tokens ─────────────────────────────────────────
 const C = {
-  accent: '#C6F432',
-  accentDim: '#C6F43218',
-  surface: '#1C1C1F',
-  textPrimary: '#FFFFFF',
-  textSecondary: '#8E8E93',
-  red: '#FF3B30',
+  accent: colors.accent,
+  accentDim: colors.accent + '18',
+  surface: colors.surface,
+  textPrimary: colors.text,
+  textSecondary: colors.textDim,
+  red: colors.danger,
 };
 
 interface FloatingRunIndicatorProps {
@@ -138,8 +140,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     gap: 10,
-    borderWidth: 1,
-    borderColor: C.accent + '40',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+    ...glassFill('green'),
     // Shadow
     shadowColor: C.accent,
     shadowOffset: { width: 0, height: 2 },
@@ -162,7 +165,7 @@ const styles = StyleSheet.create({
   sep: {
     width: 1,
     height: 14,
-    backgroundColor: '#2E2E33',
+    backgroundColor: colors.border,
   },
   stat: {
     fontSize: 13,

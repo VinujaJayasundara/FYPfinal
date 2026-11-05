@@ -4,6 +4,7 @@
  */
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { colors } from '../theme/tokens';
 
 function Placeholder() {
   return (
@@ -21,6 +22,6 @@ export function animateMapToRegion(_mapRef: unknown, _region: unknown, _duration
 export function fitMapToCoordinates(_mapRef: unknown, _coords: unknown) {}
 
 const styles = StyleSheet.create({
-  box: { backgroundColor: '#0a0e1a', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 40 },
-  text: { fontFamily: 'Urbanist_400Regular', color: '#475569', fontSize: 12 },
+  box: { backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 40 },
+  text: { fontFamily: 'Urbanist_400Regular', color: colors.textFaint, fontSize: 12 },
 });

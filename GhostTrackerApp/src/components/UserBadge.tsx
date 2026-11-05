@@ -10,13 +10,14 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useProfile } from '../context/ProfileContext';
 import Avatar from './Avatar';
+import { colors } from '../theme/tokens';
 
 // ── Design Tokens ─────────────────────────────────────────
 const C = {
-  accent: '#C6F432',
-  accentDim: '#C6F43218',
-  textPrimary: '#FFFFFF',
-  textSecondary: '#8E8E93',
+  accent: colors.accent,
+  accentDim: colors.accent + '18',
+  textPrimary: colors.text,
+  textSecondary: colors.textDim,
 };
 
 interface UserBadgeProps {

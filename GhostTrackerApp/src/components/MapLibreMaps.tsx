@@ -25,6 +25,7 @@ import {
   type LngLat,
 } from '../core/maplibre';
 import { MAP_STYLE_URL } from '../core/offlineMap';
+import { colors } from '../theme/tokens';
 
 interface Coordinate {
   latitude: number;
@@ -124,7 +125,7 @@ function RouteLine({ id, coords, color }: { id: string; coords: Coordinate[]; co
 const OFFLINE_FALLBACK_STYLE = {
   version: 8 as const,
   sources: {},
-  layers: [{ id: 'background', type: 'background' as const, paint: { 'background-color': '#0a0e1a' } }],
+  layers: [{ id: 'background', type: 'background' as const, paint: { 'background-color': colors.bg } }],
 };
 
 /** The map style, switching to the dark fallback if loading fails. */
@@ -153,34 +154,34 @@ const markerStyles = StyleSheet.create({
   finishMarkerText: { fontSize: 18 },
   ghostMarker: {
     width: 32, height: 32, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'rgba(30,20,50,0.8)', borderRadius: 16,
-    borderWidth: 1.5, borderColor: 'rgba(168,85,247,0.6)',
+    backgroundColor: colors.overlay, borderRadius: 16,
+    borderWidth: 1.5, borderColor: colors.hairline,
   },
   ghostMarkerText: { fontSize: 18 },
   runnerMarker: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   runnerMarkerPulse: {
     position: 'absolute', width: 28, height: 28, borderRadius: 14,
-    backgroundColor: 'rgba(34,197,94,0.3)',
+    backgroundColor: colors.accentDim,
   },
   runnerMarkerDot: {
-    width: 14, height: 14, borderRadius: 7, backgroundColor: '#C6F432',
-    borderWidth: 3, borderColor: '#fff',
+    width: 14, height: 14, borderRadius: 7, backgroundColor: colors.accent,
+    borderWidth: 3, borderColor: colors.white,
   },
   peerMarkerWrapper: {
     width: 40, height: 48, alignItems: 'center', justifyContent: 'flex-end',
   },
   peerLabel: {
-    backgroundColor: 'rgba(10,132,255,0.85)', paddingHorizontal: 4, paddingVertical: 1,
+    backgroundColor: colors.overlay, paddingHorizontal: 4, paddingVertical: 1,
     borderRadius: 3, marginBottom: 2,
   },
-  peerLabelText: { fontSize: 8, fontFamily: 'Urbanist_700Bold', color: '#fff' },
+  peerLabelText: { fontSize: 8, fontFamily: 'Urbanist_700Bold', color: colors.white },
   peerMarkerPulse: {
     position: 'absolute', bottom: 0, width: 28, height: 28, borderRadius: 14,
-    backgroundColor: 'rgba(10,132,255,0.3)',
+    backgroundColor: colors.peerDim,
   },
   peerMarkerDot: {
-    width: 14, height: 14, borderRadius: 7, backgroundColor: '#0A84FF',
-    borderWidth: 3, borderColor: '#fff',
+    width: 14, height: 14, borderRadius: 7, backgroundColor: colors.peer,
+    borderWidth: 3, borderColor: colors.white,
   },
 });
 
@@ -257,7 +258,7 @@ export function RunningMap({
         }}
       />
 
-      <RouteLine id="route" coords={routeCoords} color={raceColors?.route ?? '#C6F432'} />
+      <RouteLine id="route" coords={routeCoords} color={raceColors?.route ?? colors.accent} />
 
       {routeCoords.length > 0 && (
         <Marker id="start" lngLat={toLngLat(routeCoords[0])} anchor="center">
@@ -305,7 +306,7 @@ export function FinishedMap({
   mapRef,
   initialRegion,
   routeCoords,
-  color = '#C6F432',
+  color = colors.accent,
   interactive = false,
 }: {
   mapRef: React.RefObject<any>;

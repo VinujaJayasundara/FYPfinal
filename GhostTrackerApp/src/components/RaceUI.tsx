@@ -16,14 +16,16 @@ import {
 } from '../context/RaceContext';
 import { RACE_DISTANCES_M, type RaceRunner, type RaceState } from '../../../GhostTracker/src/core/race';
 import { getRaceResults, getRaceSummary, type DBRaceResult, type RaceSummary } from '../data/database';
+import { colors } from '../theme/tokens';
+import { Button, Icon, Pill, glassFill } from './ui';
 
 const C = {
-  surface: '#1C1C1F',
-  elevated: '#2A2A2E',
-  separator: '#2E2E33',
-  muted: '#8E8E93',
-  green: '#C6F432',
-  red: '#FF3B30',
+  surface: colors.surface,
+  elevated: colors.elevated,
+  separator: colors.border,
+  muted: colors.textDim,
+  green: colors.accent,
+  red: colors.danger,
 };
 
 function formatPace(sPerKm: number | null): string {
@@ -46,8 +48,8 @@ function statusText(r: RaceRunner, stale: boolean): string {
 }
 
 function statusColor(r: RaceRunner, stale: boolean): string {
-  if (stale) return '#FF9F0A';
-  return r.status === 'running' ? C.green : r.status === 'finished' ? RACE_COLOR : r.status === 'dnf' ? C.red : C.muted;
+  if (stale) return C.muted;
+  return r.status === 'running' ? C.green : r.status === 'finished' ? RACE_COLOR : r.status === 'dnf' ? C.muted : C.muted;
 }
 
 /** "You're 120 m ahead" / "Jayavi is 0:15 ahead". */
@@ -88,9 +90,7 @@ export function RaceDistancePicker({ onPick }: { onPick: (targetM: number) => vo
   return (
     <View style={styles.pickerRow}>
       {RACE_DISTANCES_M.map(m => (
-        <TouchableOpacity key={m} style={styles.pickerItem} onPress={() => onPick(m)}>
-          <Text style={styles.pickerText}>{m / 1000} km</Text>
-        </TouchableOpacity>
+        <Pill key={m} label={`${m / 1000} km`} onPress={() => onPick(m)} style={styles.pickerItem} />
       ))}
     </View>
   );
@@ -107,7 +107,7 @@ export function RaceSetupCard() {
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>
-          {RACE_SYMBOL} RACE · {race.targetM / 1000} KM
+          RACE · {race.targetM / 1000} KM
         </Text>
         <Text style={styles.cardSub}>{race.createdBy === 'me' ? 'Set by you' : `Set by ${race.friendAlias}`}</Text>
       </View>
@@ -126,9 +126,7 @@ export function RaceSetupCard() {
         Time limit {Math.round(race.timeLimitS / 60)} min from your start. You can start before or after {race.friendAlias}: each
         runner's clock starts when they press START.
       </Text>
-      <TouchableOpacity style={styles.cancelBtn} onPress={cancelRace}>
-        <Text style={styles.cancelText}>Cancel race</Text>
-      </TouchableOpacity>
+      <Button label="Cancel race" variant="secondary" size="sm" onPress={cancelRace} style={styles.cancelBtn} />
     </View>
   );
 }
@@ -145,7 +143,7 @@ export function RaceLiveCard() {
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>
-          {RACE_SYMBOL} VS {race.friendAlias.toUpperCase()} · {race.targetM / 1000} KM
+          VS {race.friendAlias.toUpperCase()} · {race.targetM / 1000} KM
         </Text>
       </View>
 
@@ -163,9 +161,7 @@ export function RaceLiveCard() {
       <StatsRow name={race.friendAlias} color={RACE_FRIEND_COLOR} r={race.friend} stale={friendStale} target={race.targetM} />
 
       {race.phase !== 'done' && (
-        <TouchableOpacity style={styles.cancelBtn} onPress={cancelRace}>
-          <Text style={styles.cancelText}>Cancel race</Text>
-        </TouchableOpacity>
+        <Button label="Cancel race" variant="secondary" size="sm" onPress={cancelRace} style={styles.cancelBtn} />
       )}
     </View>
   );
@@ -201,12 +197,10 @@ export function RaceStrip() {
     <View style={styles.strip}>
       <View style={styles.stripHeader}>
         <Text style={styles.stripTitle}>
-          {RACE_SYMBOL} VS {race.friendAlias.toUpperCase()} · {race.targetM / 1000} KM
+          VS {race.friendAlias.toUpperCase()} · {race.targetM / 1000} KM
         </Text>
         {race.phase !== 'done' && (
-          <TouchableOpacity onPress={cancelRace} hitSlop={10}>
-            <Text style={styles.stripCancel}>Cancel</Text>
-          </TouchableOpacity>
+          <Button label="Cancel" variant="ghost" size="sm" onPress={cancelRace} />
         )}
       </View>
       {lines.length > 0 && (
@@ -277,7 +271,7 @@ export function RaceLeaderboardCard({ dbVersion }: { dbVersion: number }) {
 
   return (
     <View style={[styles.card, { marginTop: 0, marginBottom: 12 }]}>
-      <Text style={styles.cardTitle}>{RACE_SYMBOL} CONNECTED RACES</Text>
+      <Text style={styles.cardTitle}>CONNECTED RACES</Text>
       <View style={styles.summaryRow}>
         <Summary label="RACES" value={String(summary.races)} />
         <Summary label="WINS" value={String(summary.wins)} color={C.green} />
@@ -291,7 +285,7 @@ export function RaceLeaderboardCard({ dbVersion }: { dbVersion: number }) {
       )}
       {rows.slice(0, 5).map(r => (
         <View key={r.id} style={styles.raceRow}>
-          <Text style={[styles.raceOutcome, { color: r.outcome === 'win' ? C.green : r.outcome === 'loss' ? C.red : C.muted }]}>
+          <Text style={[styles.raceOutcome, { color: r.outcome === 'win' ? C.green : C.muted }]}>
             {r.outcome === 'win' ? 'WIN' : r.outcome === 'loss' ? 'LOSS' : r.outcome === 'tie' ? 'TIE' : '—'}
           </Text>
           <Text style={styles.raceText} numberOfLines={1}>
@@ -323,7 +317,7 @@ export function RaceResultsModal() {
 
   const title =
     result.outcome === 'win'
-      ? '🏆 You won!'
+      ? 'You won!'
       : result.outcome === 'loss'
         ? `${race.friendAlias} won`
         : result.outcome === 'tie'
@@ -334,7 +328,7 @@ export function RaceResultsModal() {
     <Modal visible={showResults} transparent animationType="fade" onRequestClose={dismissRace}>
       <View style={styles.overlay}>
         <View style={styles.results}>
-          <Text style={styles.resultsSymbol}>{RACE_SYMBOL}</Text>
+          <Icon name="flag-outline" size={28} color={colors.text} style={styles.resultsSymbol} />
           <Text style={styles.resultsTitle}>{title}</Text>
           <Text style={styles.resultsSub}>
             {race.targetM / 1000} km connected race vs {race.friendAlias}
@@ -363,9 +357,7 @@ export function RaceResultsModal() {
           )}
           <Text style={styles.resultsNote}>Saved to your leaderboard.</Text>
 
-          <TouchableOpacity style={styles.doneBtn} onPress={dismissRace}>
-            <Text style={styles.doneText}>Done</Text>
-          </TouchableOpacity>
+          <Button label="Done" onPress={dismissRace} style={styles.doneBtn} />
         </View>
       </View>
     </Modal>
@@ -373,13 +365,13 @@ export function RaceResultsModal() {
 }
 
 const styles = StyleSheet.create({
-  strip: { borderWidth: 1, borderColor: RACE_COLOR + '80', backgroundColor: RACE_COLOR + '14', borderRadius: 20, padding: 10, marginBottom: 10 },
+  strip: { ...glassFill('neutral'), backgroundColor: colors.glass, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, borderRadius: 20, padding: 10, marginBottom: 10 },
   stripHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   stripTitle: { color: RACE_COLOR, fontSize: 12, fontFamily: 'Urbanist_800ExtraBold', letterSpacing: 1 },
   stripCancel: { color: C.red, fontSize: 12, fontFamily: 'Urbanist_700Bold' },
   stripGap: { fontSize: 18, fontFamily: 'Urbanist_800ExtraBold', marginTop: 4, marginBottom: 6 },
   stripRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  stripName: { color: '#FFFFFF', fontSize: 12, fontFamily: 'Urbanist_700Bold', flex: 1 },
+  stripName: { color: colors.text, fontSize: 12, fontFamily: 'Urbanist_700Bold', flex: 1 },
   stripDist: { fontSize: 12, fontFamily: 'Urbanist_700Bold', fontVariant: ['tabular-nums'] },
   bannerWrap: { position: 'absolute', top: 56, left: 12, right: 12, zIndex: 1000, alignItems: 'center' },
   banner: {
@@ -387,32 +379,25 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    shadowColor: '#000',
+    shadowColor: colors.onAccent,
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 8,
   },
-  bannerText: { color: '#FFFFFF', fontFamily: 'Urbanist_700Bold', fontSize: 14 },
+  bannerText: { color: colors.text, fontFamily: 'Urbanist_700Bold', fontSize: 14 },
 
   pickerRow: { flexDirection: 'row', marginTop: 8 },
-  pickerItem: {
-    flex: 1,
-    marginRight: 6,
-    borderWidth: 1,
-    borderColor: RACE_COLOR,
-    borderRadius: 10,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
+  pickerItem: { flex: 1, marginRight: 6, alignItems: 'center' },
   pickerText: { color: RACE_COLOR, fontWeight: '700' },
 
   card: {
     alignSelf: 'stretch',
     marginTop: 14,
-    backgroundColor: '#1C1C1FEE',
+    ...glassFill('neutral'),
+    backgroundColor: colors.overlay,
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: RACE_COLOR,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
     padding: 14,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
@@ -420,19 +405,19 @@ const styles = StyleSheet.create({
   cardSub: { fontFamily: 'Urbanist_400Regular', color: C.muted, fontSize: 12 },
   runnerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   dot: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
-  runnerName: { color: '#FFFFFF', fontFamily: 'Urbanist_700Bold', fontSize: 14, marginRight: 8 },
+  runnerName: { color: colors.text, fontFamily: 'Urbanist_700Bold', fontSize: 14, marginRight: 8 },
   runnerStatus: { flex: 1, textAlign: 'right', fontSize: 13 },
   hint: { fontFamily: 'Urbanist_400Regular', color: C.muted, fontSize: 12, lineHeight: 16, marginTop: 4 },
   gapMain: { fontSize: 20, fontFamily: 'Urbanist_800ExtraBold' },
   gapSub: { fontSize: 14, fontFamily: 'Urbanist_600SemiBold', marginTop: 2 },
   progressTrack: { height: 6, borderRadius: 3, backgroundColor: C.elevated, overflow: 'hidden', marginBottom: 4 },
   progressFill: { height: 6, borderRadius: 3 },
-  stats: { fontFamily: 'Urbanist_400Regular', color: '#FFFFFF', fontSize: 13 },
-  cancelBtn: { alignSelf: 'flex-end', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10 },
+  stats: { fontFamily: 'Urbanist_400Regular', color: colors.text, fontSize: 13 },
+  cancelBtn: { alignSelf: 'flex-end', marginTop: 8 },
   cancelText: { color: C.red, fontFamily: 'Urbanist_700Bold', fontSize: 13 },
 
   summaryRow: { flexDirection: 'row', marginVertical: 10 },
-  summaryValue: { color: '#FFFFFF', fontSize: 22, fontFamily: 'Urbanist_800ExtraBold' },
+  summaryValue: { color: colors.text, fontSize: 22, fontFamily: 'Urbanist_800ExtraBold' },
   summaryLabel: { fontFamily: 'Urbanist_400Regular', color: C.muted, fontSize: 11, marginTop: 2, letterSpacing: 1 },
   raceRow: {
     flexDirection: 'row',
@@ -442,13 +427,13 @@ const styles = StyleSheet.create({
     borderTopColor: C.separator,
   },
   raceOutcome: { width: 44, fontFamily: 'Urbanist_800ExtraBold', fontSize: 12 },
-  raceText: { fontFamily: 'Urbanist_400Regular', flex: 1, color: '#FFFFFF', fontSize: 13 },
+  raceText: { fontFamily: 'Urbanist_400Regular', flex: 1, color: colors.text, fontSize: 13 },
   raceTimes: { fontFamily: 'Urbanist_400Regular', color: C.muted, fontSize: 13 },
 
-  overlay: { flex: 1, backgroundColor: '#0E0E10CC', justifyContent: 'center', padding: 20 },
-  results: { backgroundColor: C.surface, borderRadius: 20, padding: 22, borderWidth: 1, borderColor: RACE_COLOR },
-  resultsSymbol: { fontSize: 28, textAlign: 'center' },
-  resultsTitle: { color: '#FFFFFF', fontSize: 26, fontFamily: 'Urbanist_800ExtraBold', textAlign: 'center', marginTop: 4 },
+  overlay: { flex: 1, backgroundColor: colors.bg + 'CC', justifyContent: 'center', padding: 20 },
+  results: { ...glassFill('neutral'), backgroundColor: C.surface, borderRadius: 24, padding: 22, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
+  resultsSymbol: { textAlign: 'center', alignSelf: 'center' },
+  resultsTitle: { color: colors.text, fontSize: 26, fontFamily: 'Urbanist_800ExtraBold', textAlign: 'center', marginTop: 4 },
   resultsSub: { fontFamily: 'Urbanist_400Regular', color: C.muted, fontSize: 13, textAlign: 'center', marginTop: 4, marginBottom: 16 },
   resultsTable: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.separator },
   resultsRow: {
@@ -459,9 +444,9 @@ const styles = StyleSheet.create({
   },
   resultsHead: { flex: 1, color: C.muted, fontWeight: '700', textAlign: 'center' },
   resultsLabel: { flex: 1, color: C.muted },
-  resultsValue: { flex: 1, color: '#FFFFFF', fontWeight: '700', textAlign: 'center' },
+  resultsValue: { flex: 1, color: colors.text, fontWeight: '700', textAlign: 'center' },
   resultsDiff: { color: RACE_COLOR, fontWeight: '700', textAlign: 'center', marginTop: 14 },
   resultsNote: { fontFamily: 'Urbanist_400Regular', color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 6 },
-  doneBtn: { backgroundColor: RACE_COLOR, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 18 },
-  doneText: { color: '#FFFFFF', fontFamily: 'Urbanist_800ExtraBold', fontSize: 16 },
+  doneBtn: { marginTop: 18 },
+  doneText: { color: colors.text, fontFamily: 'Urbanist_800ExtraBold', fontSize: 16 },
 });

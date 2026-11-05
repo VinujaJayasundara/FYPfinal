@@ -43,11 +43,13 @@ import { useBluetooth } from './BluetoothContext';
 import { useRun } from './RunContext';
 import { insertRaceResult } from '../data/database';
 import { notifyRace, prepareRaceNotifications } from '../core/notify';
+import { colors } from '../theme/tokens';
 
 /** Connected-run colour and per-runner map colours. */
-export const RACE_COLOR = '#BF5AF2';
-export const RACE_ME_COLOR = '#0A84FF';
-export const RACE_FRIEND_COLOR = '#FF9F0A';
+// Races are runs with a friend: neutral, like every friend run; you are green
+export const RACE_COLOR = colors.peer;
+export const RACE_ME_COLOR = colors.accent;
+export const RACE_FRIEND_COLOR = colors.peer;
 export const RACE_SYMBOL = '🔗';
 
 type RacePayload =

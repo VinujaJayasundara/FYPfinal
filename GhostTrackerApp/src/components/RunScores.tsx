@@ -15,15 +15,16 @@ import {
   formatVsBaseline,
   relativeToBaseline,
 } from '../../../GhostTracker/src/core/fairness/calibration';
+import { colors } from '../theme/tokens';
 
 const C = {
-  surface: '#1C1C1F',
-  elevated: '#2A2A2E',
-  accent: '#C6F432',
-  amber: '#FF9F0A',
-  text: '#FFFFFF',
-  dim: '#8E8E93',
-  faint: '#636366',
+  surface: colors.surface,
+  elevated: colors.elevated,
+  accent: colors.accent,
+  amber: colors.textDim,
+  text: colors.text,
+  dim: colors.textDim,
+  faint: colors.textFaint,
 };
 
 export interface RunScoresProps {
@@ -104,14 +105,14 @@ export default function RunScores({
       <Text style={styles.label}>RUN {runNo} · SCORES</Text>
       <View style={styles.row}>
         <View style={styles.cell}>
-          <Text style={[styles.big, { color: npiStatus?.color ?? C.dim }]}>{npi !== null ? formatNPI(npi) : '—'}</Text>
+          <Text style={[styles.big, { color: npiStatus ? colors.npi : C.dim }]}>{npi !== null ? formatNPI(npi) : '—'}</Text>
           <Text style={styles.cellLabel}>NPI</Text>
-          <Text style={[styles.cellSub, { color: npiStatus?.color ?? C.faint }]}>
+          <Text style={[styles.cellSub, { color: npiStatus ? colors.npi : C.faint }]}>
             {npiStatus ? `${npiStatus.label}` : npiMissingHint}
           </Text>
         </View>
         <View style={styles.cell}>
-          <Text style={[styles.big, { color: riiStatus?.color ?? C.dim }]}>{rii !== null && rii > 0 ? rii.toFixed(3) : '—'}</Text>
+          <Text style={[styles.big, { color: riiStatus ? colors.text : C.dim }]}>{rii !== null && rii > 0 ? rii.toFixed(3) : '—'}</Text>
           <Text style={styles.cellLabel}>RII</Text>
           <Text style={styles.cellSub}>
             {pbPace ? `vs PB ${formatPaceShort(pbPace)}/km` : pbPace === undefined ? 'vs PB at the time' : 'first run on route'}
@@ -119,7 +120,7 @@ export default function RunScores({
         </View>
       </View>
       <View style={styles.baseRow}>
-        <Text style={[styles.baseValue, { color: vsBase !== null && vsBase >= 1 ? C.accent : C.amber }]}>
+        <Text style={[styles.baseValue, { color: vsBase !== null && vsBase >= 1 ? C.accent : colors.textDim }]}>
           {formatVsBaseline(vsBase)}
         </Text>
         {baselinePace !== null && <Text style={styles.cellSub}>baseline {formatPaceShort(baselinePace)}/km</Text>}
@@ -141,6 +142,6 @@ const styles = StyleSheet.create({
   big: { fontSize: 30, fontFamily: 'Urbanist_800ExtraBold', fontVariant: ['tabular-nums'] },
   cellLabel: { color: C.dim, fontSize: 12, fontFamily: 'Urbanist_700Bold', letterSpacing: 1, marginTop: 2 },
   cellSub: { fontFamily: 'Urbanist_400Regular', color: C.faint, fontSize: 12, marginTop: 2 },
-  baseRow: { alignItems: 'center', marginTop: 14, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#2E2E33' },
+  baseRow: { alignItems: 'center', marginTop: 14, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   baseValue: { fontSize: 18, fontFamily: 'Urbanist_700Bold' },
 });

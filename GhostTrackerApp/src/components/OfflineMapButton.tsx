@@ -13,8 +13,10 @@ import {
   deleteOfflineArea,
   type OfflineAreaInfo,
 } from '../core/offlineMap';
+import { colors } from '../theme/tokens';
+import { Button } from './ui';
 
-const C = { accent: '#C6F432', amber: '#FF9F0A', text: '#FFFFFF', dim: '#8E8E93', border: '#2E2E33' };
+const C = { accent: colors.accent, amber: colors.textDim, text: colors.text, dim: colors.textDim, border: colors.border };
 
 function formatMB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -110,33 +112,18 @@ export default function OfflineMapButton({
   const saved = area?.complete;
   const label = progress !== null ? `${progress}%` : saved ? 'OFFLINE' : 'OFFLINE MAP';
   return (
-    <TouchableOpacity style={[styles.chip, inline && styles.chipInline, saved && styles.chipSaved]} onPress={onPress} activeOpacity={0.8}>
-      <Text style={[styles.icon, { color: saved ? C.accent : progress !== null ? C.amber : C.dim }]}>
-        {saved && progress === null ? '✓' : '⬇'}
-      </Text>
-      <Text style={[styles.text, saved && { color: C.accent }]}>{label}</Text>
-    </TouchableOpacity>
+    <Button
+      label={progress !== null ? label : saved ? 'Offline map saved' : 'Save offline map'}
+      icon={saved && progress === null ? 'checkmark' : 'cloud-download-outline'}
+      variant="secondary"
+      size="sm"
+      onPress={onPress}
+      style={inline ? styles.chipInline : styles.chip}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  chip: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 56 : 16,
-    left: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(28, 28, 30, 0.85)',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: C.border,
-    zIndex: 10,
-  },
-  chipInline: { position: 'relative', top: 0, left: 0, alignSelf: 'flex-start', zIndex: 0 },
-  chipSaved: { borderColor: '#C6F43250' },
-  icon: { fontSize: 13, fontFamily: 'Urbanist_800ExtraBold' },
-  text: { color: C.text, fontSize: 12, fontFamily: 'Urbanist_700Bold', letterSpacing: 1 },
+  chip: { position: 'absolute', top: Platform.OS === 'ios' ? 56 : 16, left: 16, zIndex: 10, backgroundColor: colors.overlay },
+  chipInline: { alignSelf: 'flex-start' },
 });
