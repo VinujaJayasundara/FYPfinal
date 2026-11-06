@@ -11,6 +11,8 @@ import {
   getOfflineArea,
   downloadOfflineArea,
   deleteOfflineArea,
+  bundledMapInstalled,
+  insideBundledArea,
   type OfflineAreaInfo,
 } from '../core/offlineMap';
 import { colors } from '../theme/tokens';
@@ -34,6 +36,18 @@ export default function OfflineMapButton({
   const [checked, setChecked] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const autoTriedRef = useRef(false);
+  // Built-in Colombo map (ships in the APK): nothing to download inside it
+  const [bundled, setBundled] = useState(false);
+  const [bundledChecked, setBundledChecked] = useState(false);
+  useEffect(() => {
+    if (!offlineMapsAvailable()) return;
+    // waits for the install started at app start
+    bundledMapInstalled()
+      .then(setBundled)
+      .catch(() => {})
+      .finally(() => setBundledChecked(true));
+  }, []);
+  const builtIn = bundled && !!location && insideBundledArea(location.latitude, location.longitude);
 
   const refresh = useCallback(async () => {
     try {
@@ -53,7 +67,7 @@ export default function OfflineMapButton({
   // the map works later in airplane mode without the runner having to think
   // of it. Silent if there is no internet (tried again on the next start).
   useEffect(() => {
-    if (!checked || area || !location || autoTriedRef.current || !offlineMapsAvailable()) return;
+    if (!checked || !bundledChecked || area || builtIn || !location || autoTriedRef.current || !offlineMapsAvailable()) return;
     autoTriedRef.current = true;
     setProgress(0);
     downloadOfflineArea(location.latitude, location.longitude, p => setProgress(Math.round(p)))
@@ -63,7 +77,7 @@ export default function OfflineMapButton({
       })
       .catch(e => console.log('[OfflineMap] Automatic save not possible now:', e?.message ?? e))
       .finally(() => setProgress(null));
-  }, [checked, area, location]);
+  }, [checked, bundledChecked, area, builtIn, location]);
 
   const download = useCallback(async () => {
     if (!location) {
@@ -85,6 +99,17 @@ export default function OfflineMapButton({
 
   const onPress = useCallback(() => {
     if (progress !== null) return;
+    if (!area && builtIn) {
+      Alert.alert(
+        'Offline map built in',
+        'The map of Greater Colombo (Colombo to Moratuwa, Ratmalana, Nugegoda, Maharagama) comes with the app and works without internet. Outside this area you can save the map around you.',
+        [
+          { text: 'Close', style: 'cancel' },
+          { text: 'Save around me too', onPress: download },
+        ],
+      );
+      return;
+    }
     if (!area) {
       Alert.alert(
         'Download map for offline',
@@ -105,15 +130,15 @@ export default function OfflineMapButton({
         { text: 'Close', style: 'cancel' },
       ],
     );
-  }, [area, download, progress, refresh]);
+  }, [area, builtIn, download, progress, refresh]);
 
   if (!offlineMapsAvailable()) return null;
 
-  const saved = area?.complete;
+  const saved = area?.complete || builtIn;
   const label = progress !== null ? `${progress}%` : saved ? 'OFFLINE' : 'OFFLINE MAP';
   return (
     <Button
-      label={progress !== null ? label : saved ? 'Offline map saved' : 'Save offline map'}
+      label={progress !== null ? label : builtIn && !area?.complete ? 'Offline map built in' : saved ? 'Offline map saved' : 'Save offline map'}
       icon={saved && progress === null ? 'checkmark' : 'cloud-download-outline'}
       variant="secondary"
       size="sm"

@@ -29,7 +29,8 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "FOREGROUND_SERVICE"
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "web": {
@@ -39,7 +40,9 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Ghost-Tracker needs your location to track runs."
+          "locationAlwaysAndWhenInUsePermission": "Ghost-Tracker needs your location to track runs.",
+          "isAndroidForegroundServiceEnabled": true,
+          "isAndroidBackgroundLocationEnabled": false
         }
       ],
       "expo-sqlite",
@@ -66,7 +69,8 @@
         }
       ],
       "@maplibre/maplibre-react-native",
-      "expo-font"
+      "expo-font",
+      "expo-sharing"
     ]
   }
 }

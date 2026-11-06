@@ -107,6 +107,14 @@ function RouteLine({ id, coords, color }: { id: string; coords: Coordinate[]; co
   if (coords.length < 2) return null;
   return (
     <GeoJSONSource id={`${id}-src`} data={data}>
+      {/* Dark outline under the line so it stays readable on the colour map
+          (green run line over green parks, white friend line over roads) */}
+      <Layer
+        id={`${id}-casing`}
+        type="line"
+        layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+        paint={{ 'line-color': '#0E0E10', 'line-width': 7, 'line-opacity': 0.85 }}
+      />
       <Layer
         id={`${id}-line`}
         type="line"

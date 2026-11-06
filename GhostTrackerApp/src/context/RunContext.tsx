@@ -27,6 +27,7 @@ import React, {
 import { Alert, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
+import { startRunTracking, stopRunTracking } from '../core/backgroundLocation';
 import {
   haversineDistanceM,
   calculatePace,
@@ -62,6 +63,10 @@ import {
   getUserProfile,
   getAllSessions,
   getGhostRecords,
+  appendRunJournal,
+  clearRunJournal,
+  getUnfinishedRun,
+  type JournalFix,
 } from '../data/database';
 import { calculateNPI, calculateBMI } from '../core/npiEngine';
 import {
@@ -187,7 +192,6 @@ export function RunProvider({ children }: { children: ReactNode }) {
   } | null>(null);
 
   // Refs survive re-renders and are not tied to any particular screen
-  const locationSub = useRef<Location.LocationSubscription | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const seqIndexRef = useRef(0);
   const lastKmDistRef = useRef(0);
@@ -258,21 +262,133 @@ export function RunProvider({ children }: { children: ReactNode }) {
     };
   }, [run.status, run.startTime]);
 
-  // ── Start Run ───────────────────────────────────────────
+  // ── Per-fix pipeline (live run and recovery replay) ─────
+  // silent = replaying a journalled run: no haptics, no journal writes, and
+  // time comes from the fix timestamps instead of the wall clock. A live run
+  // goes through exactly the same steps as before.
 
-  const startRun = useCallback(async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permission Denied',
-        'GPS permission is required to track your run.',
+  const handleLocation = useCallback((location: Location.LocationObject, silent = false) => {
+    const nowMs = silent ? location.timestamp : Date.now();
+    const point: GPSPoint = {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+      timestamp: location.timestamp,
+      speed: location.coords.speed,
+      accuracy: location.coords.accuracy,
+      altitude: location.coords.altitude ?? null,
+      seqIndex: seqIndexRef.current++,
+      filtered: false,
+    };
+
+    // Crash recovery: every raw fix goes to SQLite as it arrives
+    if (!silent) {
+      appendRunJournal(startTimeRef.current, [{
+        timestamp: point.timestamp,
+        latitude: point.latitude,
+        longitude: point.longitude,
+        accuracy: point.accuracy,
+        altitude: point.altitude,
+        speed: point.speed,
+      }]).catch(e => console.warn('[Journal] fix not saved:', e));
+    }
+
+    // Track processor (core/spatial/trackProcessor.ts): 1 Hz gate,
+    // accuracy, velocity, warm-up, Kalman smoothing, confirmed distance.
+    // Every raw fix is kept in run.points for the debug raw-GPS log.
+    const res = trackRef.current.push({
+      latitude: point.latitude,
+      longitude: point.longitude,
+      timestamp: point.timestamp,
+      accuracy: point.accuracy,
+      altitude: point.altitude,
+      speed: point.speed,
+    });
+    point.stage = res.accepted ? (res.stage === 'WARMUP' ? 'WARMUP' : null) : res.stage;
+    point.smoothLat = res.smoothed?.latitude ?? null;
+    point.smoothLon = res.smoothed?.longitude ?? null;
+    if (!res.accepted || !res.smoothed) {
+      point.filtered = true;
+      setRun((prev) =>
+        prev.status !== 'running'
+          ? prev
+          : { ...prev, points: [...prev.points, point], filteredCount: prev.filteredCount + 1 },
       );
       return;
     }
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    // Route point = smoothed position at each confirmed step
+    const smooth: GPSPoint = { ...point, latitude: res.smoothed.latitude, longitude: res.smoothed.longitude };
+    const position = { latitude: smooth.latitude, longitude: smooth.longitude, accuracy: point.accuracy };
+    let elevDelta = { gain: 0, loss: 0 };
+    if (res.counted) {
+      const prevValid = lastValidRef.current;
+      lastValidRef.current = smooth;
+      if (prevValid) elevDelta = calculateElevationDelta(prevValid.altitude, smooth.altitude);
+    }
+    distanceRef.current = res.distanceM;
+    const distanceM = distanceRef.current;
 
-    // Load the personal-best ghost for this route (none on the first run)
+    if (res.stage === 'WARMUP') {
+      // Settling: show the position, count nothing yet
+      setRun((prev) =>
+        prev.status !== 'running' ? prev : { ...prev, points: [...prev.points, point], position },
+      );
+      return;
+    }
+
+    // 10 s rolling pace (0 = idle sentinel)
+    const rollingPace = paceWindowRef.current.push(smooth);
+
+    // Ghost ±Δt at every 10 m mark this fix crossed
+    const pacer = ghostPacerRef.current;
+    const deltaBefore = pacer?.latest?.deltaS ?? null;
+    const elapsedAtFixS = Math.max(0, (point.timestamp - startTimeRef.current) / 1000);
+    pacer?.update(distanceM, elapsedAtFixS);
+    const latestSplit = pacer?.latest ?? null;
+    if (!silent && deltaBefore !== null && deltaBefore > 0 && latestSplit && latestSplit.deltaS <= 0) {
+      // Moved from behind the ghost to ahead of it
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    // Km split
+    if (Math.floor(distanceM / 1000) > kmSplitsRef.current.length) {
+      const splitDist = distanceM - lastKmDistRef.current;
+      const splitTime = (nowMs - lastKmTimeRef.current) / 1000;
+      kmSplitsRef.current = [...kmSplitsRef.current, calculatePace(splitDist, splitTime)];
+      lastKmDistRef.current = distanceM;
+      lastKmTimeRef.current = nowMs;
+      if (!silent) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    const splitPaces = kmSplitsRef.current;
+
+    setRun((prev) => {
+      if (prev.status !== 'running') return prev;
+
+      const elapsed = (nowMs - (prev.startTime || nowMs)) / 1000;
+
+      return {
+        ...prev,
+        points: [...prev.points, point],
+        validPoints: res.counted ? [...prev.validPoints, smooth] : prev.validPoints,
+        position,
+        distanceM,
+        elevationGainM: prev.elevationGainM + elevDelta.gain,
+        elevationLossM: prev.elevationLossM + elevDelta.loss,
+        currentAltitudeM: smooth.altitude,
+        currentPaceSPerKm: rollingPace,
+        avgPaceSPerKm: calculatePace(distanceM, elapsed),
+        splitPaces,
+        ghostDeltaS: latestSplit?.deltaS ?? null,
+        ghostSplitDistanceM: latestSplit?.distanceM ?? null,
+        ghostFinished: pacer?.finished ?? false,
+      };
+    });
+  }, []);
+
+  // ── Run setup shared by a new run and a recovered run ───
+
+  const loadGhost = useCallback(async () => {
+    // Personal-best ghost for this route (none on the first run)
     let ghostCheckpoints: GhostCheckpoint[] = [];
     let ghostTrack: { latitude: number; longitude: number }[] = [];
     let pbPaceSPerKm: number | null = null;
@@ -287,9 +403,10 @@ export function RunProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn('[Ghost] Could not load the PB ghost:', e);
     }
+    return { ghostCheckpoints, ghostTrack, pbPaceSPerKm };
+  }, []);
 
-    // Reset sequence counters and the live pipeline
-    const startTime = Date.now();
+  const resetPipeline = useCallback((startTime: number, ghostCheckpoints: GhostCheckpoint[]) => {
     seqIndexRef.current = 0;
     lastKmDistRef.current = 0;
     lastKmTimeRef.current = startTime;
@@ -300,6 +417,29 @@ export function RunProvider({ children }: { children: ReactNode }) {
     lastValidRef.current = null;
     distanceRef.current = 0;
     kmSplitsRef.current = [];
+  }, []);
+
+  // ── Start Run ───────────────────────────────────────────
+
+  const startRun = useCallback(async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission Denied',
+        'GPS permission is required to track your run.',
+      );
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    await stopRunTracking();
+    await clearRunJournal().catch(e => console.warn('[Journal] clear failed:', e));
+    const ghost = await loadGhost();
+
+    // Reset sequence counters and the live pipeline
+    const startTime = Date.now();
+    resetPipeline(startTime, ghost.ghostCheckpoints);
 
     setRun({
       ...INITIAL_RUN,
@@ -309,127 +449,88 @@ export function RunProvider({ children }: { children: ReactNode }) {
         baselinePace: calibrationRef.current.baselinePace,
       },
       startTime,
-      ghostCheckpoints,
-      ghostTrack,
-      pbPaceSPerKm,
+      ...ghost,
     });
 
-    // Start GPS tracking at 1 Hz, highest accuracy (Android: fused provider,
-    // high-accuracy priority). distanceInterval 0: fixes keep coming while
-    // standing, so the warm-up and the filter can settle before moving.
-    locationSub.current = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: 1000,
-        distanceInterval: 0,
-        mayShowUserSettingsDialog: true,
+    // GPS at 1 Hz, highest accuracy, delivered by a foreground service so it
+    // keeps working with the screen off (core/backgroundLocation.ts).
+    await startRunTracking((locations) => {
+      for (const l of locations) handleLocation(l);
+    });
+  }, [handleLocation, loadGhost, resetPipeline]);
+
+  // ── Recover a run the app was killed during ─────────────
+  // Replays the journalled raw fixes through the same pipeline as a live run,
+  // then saves it like any finished run. Nothing is estimated or filled in:
+  // the run simply ends at the last fix that was recorded.
+
+  const recoverRun = useCallback(async (rec: { runStartedAt: number; fixes: JournalFix[] }) => {
+    const ghost = await loadGhost();
+    resetPipeline(rec.runStartedAt, ghost.ghostCheckpoints);
+    const lastTs = rec.fixes[rec.fixes.length - 1].timestamp;
+    setRun({
+      ...INITIAL_RUN,
+      status: 'running',
+      calibrationAtStart: {
+        runs: calibrationRef.current.runs,
+        baselinePace: calibrationRef.current.baselinePace,
       },
-      (location) => {
-        const point: GPSPoint = {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          timestamp: location.timestamp,
-          speed: location.coords.speed,
-          accuracy: location.coords.accuracy,
-          altitude: location.coords.altitude ?? null,
-          seqIndex: seqIndexRef.current++,
-          filtered: false,
-        };
+      startTime: rec.runStartedAt,
+      ...ghost,
+    });
+    for (const f of rec.fixes) {
+      handleLocation(
+        {
+          timestamp: f.timestamp,
+          coords: {
+            latitude: f.latitude,
+            longitude: f.longitude,
+            accuracy: f.accuracy,
+            altitude: f.altitude,
+            speed: f.speed,
+            altitudeAccuracy: null,
+            heading: null,
+          },
+        },
+        true,
+      );
+    }
+    setRun((prev) => ({
+      ...prev,
+      status: 'finished',
+      elapsedS: Math.floor((lastTs - rec.runStartedAt) / 1000),
+    }));
+    console.log(`[Journal] recovered run ${new Date(rec.runStartedAt).toISOString()} (${rec.fixes.length} fixes)`);
+  }, [handleLocation, loadGhost, resetPipeline]);
 
-        // Track processor (core/spatial/trackProcessor.ts): 1 Hz gate,
-        // accuracy, velocity, warm-up, Kalman smoothing, confirmed distance.
-        // Every raw fix is kept in run.points for the debug raw-GPS log.
-        const res = trackRef.current.push({
-          latitude: point.latitude,
-          longitude: point.longitude,
-          timestamp: point.timestamp,
-          accuracy: point.accuracy,
-          altitude: point.altitude,
-          speed: point.speed,
-        });
-        point.stage = res.accepted ? (res.stage === 'WARMUP' ? 'WARMUP' : null) : res.stage;
-        point.smoothLat = res.smoothed?.latitude ?? null;
-        point.smoothLon = res.smoothed?.longitude ?? null;
-        if (!res.accepted || !res.smoothed) {
-          point.filtered = true;
-          setRun((prev) =>
-            prev.status !== 'running'
-              ? prev
-              : { ...prev, points: [...prev.points, point], filteredCount: prev.filteredCount + 1 },
-          );
-          return;
-        }
-
-        // Route point = smoothed position at each confirmed step
-        const smooth: GPSPoint = { ...point, latitude: res.smoothed.latitude, longitude: res.smoothed.longitude };
-        const position = { latitude: smooth.latitude, longitude: smooth.longitude, accuracy: point.accuracy };
-        let elevDelta = { gain: 0, loss: 0 };
-        if (res.counted) {
-          const prevValid = lastValidRef.current;
-          lastValidRef.current = smooth;
-          if (prevValid) elevDelta = calculateElevationDelta(prevValid.altitude, smooth.altitude);
-        }
-        distanceRef.current = res.distanceM;
-        const distanceM = distanceRef.current;
-
-        if (res.stage === 'WARMUP') {
-          // Settling: show the position, count nothing yet
-          setRun((prev) =>
-            prev.status !== 'running' ? prev : { ...prev, points: [...prev.points, point], position },
-          );
-          return;
-        }
-
-        // 10 s rolling pace (0 = idle sentinel)
-        const rollingPace = paceWindowRef.current.push(smooth);
-
-        // Ghost ±Δt at every 10 m mark this fix crossed
-        const pacer = ghostPacerRef.current;
-        const deltaBefore = pacer?.latest?.deltaS ?? null;
-        const elapsedAtFixS = Math.max(0, (point.timestamp - startTimeRef.current) / 1000);
-        pacer?.update(distanceM, elapsedAtFixS);
-        const latestSplit = pacer?.latest ?? null;
-        if (deltaBefore !== null && deltaBefore > 0 && latestSplit && latestSplit.deltaS <= 0) {
-          // Moved from behind the ghost to ahead of it
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
-
-        // Km split
-        if (Math.floor(distanceM / 1000) > kmSplitsRef.current.length) {
-          const splitDist = distanceM - lastKmDistRef.current;
-          const splitTime = (Date.now() - lastKmTimeRef.current) / 1000;
-          kmSplitsRef.current = [...kmSplitsRef.current, calculatePace(splitDist, splitTime)];
-          lastKmDistRef.current = distanceM;
-          lastKmTimeRef.current = Date.now();
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-        const splitPaces = kmSplitsRef.current;
-
-        setRun((prev) => {
-          if (prev.status !== 'running') return prev;
-
-          const elapsed = (Date.now() - (prev.startTime || Date.now())) / 1000;
-
-          return {
-            ...prev,
-            points: [...prev.points, point],
-            validPoints: res.counted ? [...prev.validPoints, smooth] : prev.validPoints,
-            position,
-            distanceM,
-            elevationGainM: prev.elevationGainM + elevDelta.gain,
-            elevationLossM: prev.elevationLossM + elevDelta.loss,
-            currentAltitudeM: smooth.altitude,
-            currentPaceSPerKm: rollingPace,
-            avgPaceSPerKm: calculatePace(distanceM, elapsed),
-            splitPaces,
-            ghostDeltaS: latestSplit?.deltaS ?? null,
-            ghostSplitDistanceM: latestSplit?.distanceM ?? null,
-            ghostFinished: pacer?.finished ?? false,
-          };
-        });
-      },
-    );
-  }, []);
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    (async () => {
+      // A service left over from a run the app was killed during
+      await stopRunTracking();
+      const rec = await getUnfinishedRun().catch(() => null);
+      if (!rec) return;
+      if (rec.fixes.length < 2) {
+        await clearRunJournal().catch(() => {});
+        return;
+      }
+      const first = rec.fixes[0].timestamp;
+      const last = rec.fixes[rec.fixes.length - 1].timestamp;
+      const mins = Math.max(1, Math.round((last - first) / 60000));
+      const started = new Date(rec.runStartedAt).toLocaleString([], {
+        weekday: 'short', hour: '2-digit', minute: '2-digit',
+      });
+      Alert.alert(
+        'Unfinished run found',
+        `The app was closed during your run on ${started} (about ${mins} min, ${rec.fixes.length} GPS fixes). Save what was recorded?`,
+        [
+          { text: 'Discard', style: 'destructive', onPress: () => { clearRunJournal().catch(() => {}); } },
+          { text: 'Save run', onPress: () => { recoverRun(rec); } },
+        ],
+        { cancelable: false },
+      );
+    })();
+  }, [recoverRun]);
 
   // ── DB version counter — bumped after each successful persist ──
   const [dbVersion, setDbVersion] = useState(0);
@@ -447,11 +548,17 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   // ── Persist Run to SQLite ───────────────────────────────
 
+  // The run is in SQLite now (or had nothing to keep): empty the journal
+  const clearJournal = () => clearRunJournal().catch(e => console.warn('[Journal] clear failed:', e));
+
   const persistRun = useCallback(async (finishedRun: RunState) => {
     try {
       // Debug: every raw fix with the smoothed position (raw vs filtered)
+      // Awaited: it must not overlap the session inserts below (a failed
+      // overlap rolled back the new session; the GPS points then failed
+      // their foreign key).
       if (finishedRun.startTime && finishedRun.points.length > 0) {
-        saveRawGpsLog(
+        await saveRawGpsLog(
           finishedRun.startTime,
           finishedRun.points.map(p => ({
             seq: p.seqIndex,
@@ -470,6 +577,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
       if (finishedRun.validPoints.length === 0) {
         console.log('[DB] No valid points — skipping persist');
+        clearJournal();
         return;
       }
 
@@ -551,6 +659,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
       if (!hasValidPace) {
         console.log('[DB] Run too short for PB/leaderboard:', finishedRun.distanceM.toFixed(1), 'm');
         setDbVersion(v => v + 1);
+        clearJournal();
         return;
       }
 
@@ -611,7 +720,9 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
       console.log('[DB] Run persisted successfully:', sessionId);
       setDbVersion(v => v + 1);
+      clearJournal();
     } catch (e) {
+      // Journal kept: the run is offered again on the next start
       console.error('[DB] Failed to persist run:', e);
     }
   }, []);
@@ -633,8 +744,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
   // ── Finish Run (no confirmation; used when a race reaches its target) ──
 
   const finishRun = useCallback(() => {
-    locationSub.current?.remove();
-    locationSub.current = null;
+    stopRunTracking();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setRun((prev) => (prev.status === 'running' ? { ...prev, status: 'finished' } : prev));
   }, []);
@@ -643,9 +753,8 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   const stopRun = useCallback(() => {
     const doStop = () => {
-      // Clean up GPS subscription
-      locationSub.current?.remove();
-      locationSub.current = null;
+      // Stop GPS (and the foreground service)
+      stopRunTracking();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       setRun((prev) => ({ ...prev, status: 'finished' }));
     };
@@ -665,8 +774,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
   // ── Reset Run ───────────────────────────────────────────
 
   const resetRun = useCallback(() => {
-    locationSub.current?.remove();
-    locationSub.current = null;
+    stopRunTracking();
     setRun(INITIAL_RUN);
   }, []);
 
@@ -674,7 +782,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     return () => {
-      locationSub.current?.remove();
+      stopRunTracking();
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);

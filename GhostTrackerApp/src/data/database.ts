@@ -115,11 +115,15 @@ export async function initDatabase(): Promise<void> {
   dbHolder.__ghostTrackerDb = db;
 
   await db.execAsync(PRAGMAS_SQL);
+  // Wait (up to 5 s) instead of failing when another connection holds the
+  // write lock, e.g. the raw-GPS save's exclusive transaction at run end.
+  await db.execAsync('PRAGMA busy_timeout = 5000;');
   const report = await migrateDatabase(asSqlDb(db));
   if (report.migrated) {
     console.log('[DB] Migrated to the thesis schema:', JSON.stringify(report));
   }
   await removeDemoData();
+  await db.execAsync(RUN_JOURNAL_SQL);
   console.log('[DB] Database initialized with WAL mode');
 }
 
@@ -834,9 +838,11 @@ export interface RawGpsRow {
 export async function saveRawGpsLog(runStartedAt: number, rows: RawGpsRow[]): Promise<void> {
   if (!LOG_RAW_GPS || rows.length === 0) return;
   const conn = getDb();
-  await conn.withTransactionAsync(async () => {
+  // Exclusive: other writes on the shared connection (journal, battery log,
+  // session inserts) cannot slip into or break this transaction.
+  await conn.withExclusiveTransactionAsync(async txn => {
     for (const r of rows) {
-      await conn.runAsync(
+      await txn.runAsync(
         `INSERT OR REPLACE INTO gps_raw_log
            (run_started_at, seq, timestamp, latitude, longitude, accuracy, speed, used, stage, smooth_lat, smooth_lon)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -861,4 +867,76 @@ export async function lastRunRawGpsCsv(): Promise<{ csv: string; rows: number; r
      r.used, r.stage ?? '', r.smooth_lat?.toFixed(7) ?? '', r.smooth_lon?.toFixed(7) ?? ''].join(','),
   );
   return { csv: [header, ...lines].join('\n'), rows: rows.length, runStartedAt: last.t };
+}
+
+// ── Run journal (crash recovery) ──────────────────────────
+// Working buffer, not a thesis Table 15 table: the raw fixes of the run in
+// progress, written as they arrive, so a run survives the app being killed
+// mid-run. Emptied when the run is saved or discarded. Stays on the phone.
+
+const RUN_JOURNAL_SQL = `
+  CREATE TABLE IF NOT EXISTS run_journal (
+    run_started_at INTEGER NOT NULL,
+    timestamp      INTEGER NOT NULL,
+    latitude       REAL NOT NULL,
+    longitude      REAL NOT NULL,
+    accuracy       REAL,
+    altitude       REAL,
+    speed          REAL,
+    PRIMARY KEY (run_started_at, timestamp)
+  );`;
+
+export interface JournalFix {
+  timestamp: number;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  altitude: number | null;
+  speed: number | null;
+}
+
+/** Append raw fixes of the run started at runStartedAt (duplicates ignored). */
+export async function appendRunJournal(runStartedAt: number, fixes: JournalFix[]): Promise<void> {
+  if (fixes.length === 0) return;
+  const conn = getDb();
+  for (const f of fixes) {
+    await conn.runAsync(
+      `INSERT OR IGNORE INTO run_journal (run_started_at, timestamp, latitude, longitude, accuracy, altitude, speed)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [runStartedAt, f.timestamp, f.latitude, f.longitude, f.accuracy, f.altitude, f.speed],
+    );
+  }
+}
+
+/** Start time of the most recent journalled run, or null if the journal is empty. */
+export async function getJournalRunStart(): Promise<number | null> {
+  const row = await getDb().getFirstAsync<{ t: number | null }>(`SELECT MAX(run_started_at) AS t FROM run_journal`);
+  return row?.t ?? null;
+}
+
+/** The unfinished run left in the journal, oldest fix first, or null. */
+export async function getUnfinishedRun(): Promise<{ runStartedAt: number; fixes: JournalFix[] } | null> {
+  const t = await getJournalRunStart();
+  if (!t) return null;
+  const fixes = await getDb().getAllAsync<JournalFix>(
+    `SELECT timestamp, latitude, longitude, accuracy, altitude, speed FROM run_journal
+     WHERE run_started_at = ? ORDER BY timestamp`,
+    [t],
+  );
+  return { runStartedAt: t, fixes };
+}
+
+export async function clearRunJournal(): Promise<void> {
+  await getDb().runAsync(`DELETE FROM run_journal`);
+}
+
+// ── Data export ───────────────────────────────────────────
+
+/**
+ * Consistent copy of the whole database (VACUUM INTO) at targetPath, a plain
+ * file-system path. Used by Diagnostics → Export data.
+ */
+export async function exportDatabaseTo(targetPath: string): Promise<void> {
+  const escaped = targetPath.replace(/'/g, "''");
+  await getDb().execAsync(`VACUUM INTO '${escaped}'`);
 }

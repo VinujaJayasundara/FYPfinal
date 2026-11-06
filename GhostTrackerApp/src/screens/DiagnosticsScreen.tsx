@@ -25,6 +25,8 @@ import {
   View,
 } from 'react-native';
 import * as SQLite from 'expo-sqlite';
+import * as Sharing from 'expo-sharing';
+import { File, Paths } from 'expo-file-system';
 import {
   runInferenceBenchmark,
   runWalBenchmark,
@@ -35,6 +37,8 @@ import {
 } from '../../../GhostTracker/src/core/diagnostics/benchmarks';
 import type { SqlDb } from '../../../GhostTracker/src/data/database/thesisSchema';
 import { NPI_MODEL } from '../core/npiEngine';
+import { exportDatabaseTo } from '../data/database';
+import { buildBundledPack } from '../core/offlineMap';
 import { batteryAvailable } from '../core/battery';
 import {
   getBatteryLog,
@@ -217,6 +221,42 @@ export default function DiagnosticsScreen({
     Share.share({ title: 'EquiStride battery log', message: csv });
   }, [device]);
 
+  // Whole database (all runs, raw GPS logs, battery log, sync log) as one
+  // SQLite file, for the field-test evidence. Shared only when you choose to.
+  const [exportNote, setExportNote] = useState<string | null>(null);
+  const exportData = useCallback(async () => {
+    setExportNote(null);
+    try {
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+      const name = `equistride-${device.model.replace(/[^A-Za-z0-9]+/g, '_')}-${device.environment}-${stamp}.db`;
+      const file = new File(Paths.cache, name);
+      if (file.exists) file.delete();
+      await exportDatabaseTo(decodeURI(file.uri.replace(/^file:\/\//, '')));
+      if (!(await Sharing.isAvailableAsync())) {
+        setExportNote(`Saved on the phone only: ${file.uri}`);
+        return;
+      }
+      await Sharing.shareAsync(file.uri, {
+        mimeType: 'application/x-sqlite3',
+        dialogTitle: 'EquiStride data export',
+      });
+      setExportNote(`Exported ${name} (${(file.size / 1024).toFixed(0)} KB)`);
+    } catch (e: any) {
+      setExportNote(`Export failed: ${e?.message ?? String(e)}`);
+    }
+  }, [device]);
+
+  const [packNote, setPackNote] = useState<string | null>(null);
+  const buildPack = useCallback(async () => {
+    setPackNote('Downloading 0%…');
+    try {
+      const bytes = await buildBundledPack(p => setPackNote(`Downloading ${Math.round(p)}%…`));
+      setPackNote(`Built-in map pack ready: ${(bytes / 1048576).toFixed(1)} MB`);
+    } catch (e: any) {
+      setPackNote(`Failed: ${e?.message ?? String(e)}`);
+    }
+  }, []);
+
   const last = runs[runs.length - 1];
   const walByName = (name: string) => last?.wal?.find(w => w.config === name);
   const walApp = walByName('wal-normal');
@@ -325,6 +365,33 @@ ${r.csv}`,
             >
               <Text style={styles.buttonText}>SHARE LAST RUN (CSV)</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Export everything (field-test evidence, demo data) */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>EXPORT DATA</Text>
+            <Text style={styles.small}>
+              The whole database as one file: every run, its GPS points, the raw GPS logs, battery and sync logs. The
+              file name carries this phone's model and whether it is a phone or an emulator. Stays on this phone unless
+              you share it.
+            </Text>
+            <TouchableOpacity style={[styles.button, { marginTop: 10 }]} onPress={exportData}>
+              <Text style={styles.buttonText}>EXPORT ALL DATA (.db)</Text>
+            </TouchableOpacity>
+            {exportNote && <Text style={styles.small}>{exportNote}</Text>}
+          </View>
+
+          {/* Developer: make the built-in Colombo map (laptop emulator, online) */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>BUILT-IN MAP (DEVELOPER)</Text>
+            <Text style={styles.small}>
+              Saves the whole Greater Colombo area as one offline pack, to be bundled into the next APK. Deletes the
+              other saved map areas on this device. Needs internet.
+            </Text>
+            <TouchableOpacity style={[styles.button, { marginTop: 10 }]} onPress={buildPack}>
+              <Text style={styles.buttonText}>BUILD BUILT-IN MAP PACK</Text>
+            </TouchableOpacity>
+            {packNote && <Text style={styles.small}>{packNote}</Text>}
           </View>
 
           {/* Sync log (the Sync tab is hidden from normal use) */}

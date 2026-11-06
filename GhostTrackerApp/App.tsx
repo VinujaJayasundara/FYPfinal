@@ -9,6 +9,7 @@
  *   - SQLite database initialization gate
  */
 
+import { installBundledMap } from './src/core/offlineMap';
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
@@ -191,6 +192,8 @@ export default function App() {
       try {
         await initDatabase();
         console.log('[App] Database ready');
+        // Built-in Colombo map from the APK (first start only; never blocks)
+        installBundledMap();
       } catch (e) {
         console.error('[App] Database init failed:', e);
       }
