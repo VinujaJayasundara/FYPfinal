@@ -23,8 +23,10 @@ import {
   KeyboardAvoidingView,
   Alert,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { useProfile } from '../context/ProfileContext';
+import { getSettings, updateSettings } from '../core/settings';
 import Avatar from '../components/Avatar';
 import { pickAvatar, photosAvailable, type AvatarSource } from '../core/avatar';
 import { calculateBMI, predictExpectedPace, formatNPI, getModelInterpretation, getModelQuality } from '../core/npiEngine';
@@ -165,6 +167,8 @@ function FormField({
 export default function ProfileSetupScreen({ onSave, onBack, existingProfile, initialName, onOpenDiagnostics }: ProfileSetupScreenProps) {
   const { profile, setAvatar } = useProfile();
   const [name, setName] = useState(existingProfile?.name ?? initialName ?? '');
+  // Applies at once (not part of the profile form's Save)
+  const [offlineMapOnly, setOfflineMapOnly] = useState(() => getSettings().offlineMapOnly);
   const [age, setAge] = useState(existingProfile?.age?.toString() ?? '');
   const [weight, setWeight] = useState(existingProfile?.weightKg?.toString() ?? '');
   const [height, setHeight] = useState(existingProfile?.heightCm?.toString() ?? '');
@@ -535,6 +539,38 @@ export default function ProfileSetupScreen({ onSave, onBack, existingProfile, in
               </View>
             ))}
           </View>
+
+          {/* ── Privacy (applies at once) ─────────────────── */}
+          {Platform.OS !== 'web' && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <SectionIcon name="lock-closed-outline" tone="green" />
+                <View>
+                  <Text style={styles.sectionTitle}>Privacy</Text>
+                  <Text style={styles.sectionDesc}>Your runs never leave this phone</Text>
+                </View>
+              </View>
+              <View style={styles.qualityRow}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={styles.qualityMetric}>Offline map only</Text>
+                  <Text style={styles.modelExplain}>
+                    The map never uses the internet. It shows the built-in Sri Lanka map (street detail in Colombo,
+                    Kandy and Horton Plains) and the area you saved. With this on, the app makes no internet requests of its own.
+                  </Text>
+                </View>
+                <Switch
+                  value={offlineMapOnly}
+                  onValueChange={v => {
+                    setOfflineMapOnly(v);
+                    updateSettings({ offlineMapOnly: v });
+                  }}
+                  trackColor={{ false: C.surfaceElevated, true: C.accent }}
+                  thumbColor={offlineMapOnly ? C.bg : C.textSecondary}
+                  accessibilityLabel="Offline map only"
+                />
+              </View>
+            </View>
+          )}
 
           {/* ── Save Button ───────────────────────────────── */}
           {/* Invalid but changed: looks disabled, still tappable to show the errors */}

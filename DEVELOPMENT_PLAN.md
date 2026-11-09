@@ -328,6 +328,43 @@ Seven bugs fixed (commit bb19a3e):
 
 ---
 
+## After the viva (from 20 Nov) — post-submission development
+
+Not started before the viva on purpose: each item would change measured results or add risk after the code freeze (17 Nov). At the viva, describe these as planned next steps. Order is by value and effort.
+
+### 1. Encrypt the database at rest (≈ 1 day)
+- Turn on SQLCipher in expo-sqlite (`useSQLCipher: true` in the expo-sqlite plugin config) and open the database with `PRAGMA key`.
+- Generate a random 256-bit key on first start and keep it in the Android Keystore through `expo-secure-store`; never in code or in the database.
+- Migrate existing plaintext databases with `ATTACH … KEY` + `sqlcipher_export()`. Export a backup from every phone first.
+- "Export all data" must still produce a file the laptop can read: export through an attached unencrypted copy, or ask before sharing a decrypted copy.
+- Re-run the Diagnostics write benchmark and report the encrypted latency next to the thesis's unencrypted 1.12 ms. Never mix the two.
+- Done when: a fresh install and an upgraded install both open, runs survive the upgrade, the export opens on the laptop, and the benchmark has been re-measured on a phone.
+
+### 2. Signed leaderboard entries and authenticated peers (≈ 2–3 days)
+- One key pair per device (Ed25519), private key in the Keystore. The hashed node ID becomes the hash of the public key.
+- Every leaderboard entry is signed by its author; peers reject entries with a bad signature.
+- "Witnesses" become real counter-signatures instead of a record of who forwarded an entry.
+- Must still fit the ≤ 384-byte frame: measure the frame size with signatures and record it.
+
+### 3. Anti-cheating (thesis future work, Table 40 axis 4)
+- Android Play Integrity check before a run counts for the shared leaderboard (needs a Play Console project).
+- Later: zero-knowledge range proofs (zk-SNARKs) so a device can prove an NPI without sharing the route. Research item, not a quick task.
+
+### 4. Privacy and usability fixes
+- Option to hide the display name during Bluetooth sync (share only the hashed ID).
+- Delete a run from History (for test and junk runs; e.g. the 0:09 test run on the OnePlus).
+- Error boundary: a crash in one screen shows a "something went wrong" card instead of closing the app.
+- GPS signal indicator on the Run screen (accuracy in metres, weak/good).
+- "This week" on Home counts valid runs only.
+
+### 5. Thesis roadmap (Chapter 5 Table 40, Chapter 6)
+- Short term: non-linear pace model (restricted cubic splines or a small INT8 network via TFLite / ONNX Runtime Mobile), kept under 1 ms on the phone.
+- Medium term: heart-rate straps and watches over the BLE Heart Rate Service (0x180D) — %HRR, HRV, SpO₂ into the NPI.
+- Medium term: multi-hop store-and-forward mesh, LoRaWAN at checkpoints.
+- Long term: hardware attestation + zk-SNARK performance proofs (item 3).
+
+---
+
 ## Risk register
 
 | Risk | Likelihood | Impact | Mitigation |

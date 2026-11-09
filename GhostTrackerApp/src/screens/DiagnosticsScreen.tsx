@@ -250,7 +250,7 @@ export default function DiagnosticsScreen({
   const buildPack = useCallback(async () => {
     setPackNote('Downloading 0%…');
     try {
-      const bytes = await buildBundledPack(p => setPackNote(`Downloading ${Math.round(p)}%…`));
+      const bytes = await buildBundledPack(note => setPackNote(`Downloading ${note}…`));
       setPackNote(`Built-in map pack ready: ${(bytes / 1048576).toFixed(1)} MB`);
     } catch (e: any) {
       setPackNote(`Failed: ${e?.message ?? String(e)}`);
@@ -385,7 +385,7 @@ ${r.csv}`,
           <View style={styles.card}>
             <Text style={styles.cardTitle}>BUILT-IN MAP (DEVELOPER)</Text>
             <Text style={styles.small}>
-              Saves the whole Greater Colombo area as one offline pack, to be bundled into the next APK. Deletes the
+              Saves the built-in Sri Lanka map (island overview + Colombo, Kandy, Horton Plains detail) as offline packs, to be bundled into the next APK. Deletes the
               other saved map areas on this device. Needs internet.
             </Text>
             <TouchableOpacity style={[styles.button, { marginTop: 10 }]} onPress={buildPack}>

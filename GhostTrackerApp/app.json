@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0a0e1a"
+      "backgroundColor": "#0E0E10"
     },
     "ios": {
       "supportsTablet": true,
@@ -23,7 +23,7 @@
       "package": "com.equistride.ghosttracker",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0a0e1a"
+        "backgroundColor": "#0E0E10"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [

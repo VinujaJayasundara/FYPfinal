@@ -9,7 +9,8 @@
  *   - SQLite database initialization gate
  */
 
-import { installBundledMap } from './src/core/offlineMap';
+import { installBundledMap, setMapOfflineOnly } from './src/core/offlineMap';
+import { getSettings, onSettingsChange } from './src/core/settings';
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
@@ -187,12 +188,19 @@ export default function App() {
     Urbanist_800ExtraBold,
   });
 
+  // "Offline map only" (Profile): applied before any map is shown, and on change
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    setMapOfflineOnly(getSettings().offlineMapOnly);
+    return onSettingsChange(st => setMapOfflineOnly(st.offlineMapOnly));
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
         await initDatabase();
         console.log('[App] Database ready');
-        // Built-in Colombo map from the APK (first start only; never blocks)
+        // Built-in Sri Lanka map from the APK (first start only; never blocks)
         installBundledMap();
       } catch (e) {
         console.error('[App] Database init failed:', e);

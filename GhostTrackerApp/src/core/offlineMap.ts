@@ -25,20 +25,60 @@ export const OFFLINE_MAX_ZOOM = 14;
 const PACK_NAME = 'equistride-area-liberty';
 
 /**
- * Built-in map: Greater Colombo (Colombo, Dehiwala, Ratmalana/KDU,
- * Boralesgamuwa, Nugegoda, Maharagama, Moratuwa) ships inside the APK, so the
- * map works from the first start without internet. Made once on the laptop
- * emulator with Diagnostics → "Build built-in map pack", trimmed to this one
- * pack, and bundled as assets/map/colombo-offline.db (see scripts/README).
+ * Built-in map (ships inside the APK, works from the first start without
+ * internet): the whole island at overview detail, plus street detail where
+ * the thesis field tests ran (Greater Colombo incl. Galle Face and KDU,
+ * Kandy Lake, Horton Plains). Made once on the laptop emulator with
+ * Diagnostics -> "Build built-in map pack", trimmed to these packs and
+ * bundled as assets/map/srilanka-offline.db.
  */
-export const BUNDLED_PACK_NAME = 'equistride-bundled-colombo';
-/** [west, south, east, north] */
-export const BUNDLED_BOUNDS: [number, number, number, number] = [79.8, 6.7, 80.05, 7.05];
-const BUNDLED_MAX_ZOOM = 14;
+export interface BundledArea {
+  name: string;
+  label: string;
+  /** [west, south, east, north] */
+  bounds: [number, number, number, number];
+  minZoom: number;
+  maxZoom: number;
+  /** Street-level detail (zoom 14); otherwise overview only. */
+  detailed: boolean;
+}
 
-export function insideBundledArea(latitude: number, longitude: number): boolean {
-  const [w, s, e, n] = BUNDLED_BOUNDS;
+export const BUNDLED_PREFIX = 'equistride-bundled-';
+export const BUNDLED_AREAS: BundledArea[] = [
+  { name: BUNDLED_PREFIX + 'island', label: 'Sri Lanka', bounds: [79.5, 5.85, 81.95, 9.9], minZoom: 5, maxZoom: 12, detailed: false },
+  { name: BUNDLED_PREFIX + 'colombo', label: 'Greater Colombo', bounds: [79.8, 6.7, 80.05, 7.05], minZoom: 10, maxZoom: 14, detailed: true },
+  { name: BUNDLED_PREFIX + 'kandy', label: 'Kandy', bounds: [80.56, 7.24, 80.7, 7.35], minZoom: 10, maxZoom: 14, detailed: true },
+  { name: BUNDLED_PREFIX + 'horton', label: 'Horton Plains', bounds: [80.74, 6.76, 80.86, 6.86], minZoom: 10, maxZoom: 14, detailed: true },
+];
+
+function inside(a: BundledArea, latitude: number, longitude: number): boolean {
+  const [w, s, e, n] = a.bounds;
   return longitude >= w && longitude <= e && latitude >= s && latitude <= n;
+}
+
+/** The built-in street-detail area containing this point, if any. */
+export function bundledDetailArea(latitude: number, longitude: number): BundledArea | null {
+  return BUNDLED_AREAS.find(a => a.detailed && inside(a, latitude, longitude)) ?? null;
+}
+
+/** True inside any built-in area (street detail or the island overview). */
+export function insideBundledArea(latitude: number, longitude: number): boolean {
+  return BUNDLED_AREAS.some(a => inside(a, latitude, longitude));
+}
+
+/**
+ * "Offline map only": MapLibre makes no internet requests (no tiles, no
+ * style); it uses only the built-in and saved maps.
+ */
+export function setMapOfflineOnly(on: boolean): void {
+  const m = load();
+  if (!m) return;
+  try {
+    m.NetworkManager.setConnected(!on);
+    console.log('[OfflineMap] offline map only:', on);
+  } catch (e) {
+    console.warn('[OfflineMap] could not change network mode:', e);
+  }
 }
 
 type ML = typeof import('./maplibre');
@@ -89,18 +129,24 @@ async function findPack(name: string = PACK_NAME) {
 
 let installing: Promise<unknown> | null = null;
 
-/** True when the built-in Colombo map is installed and complete (waits for a running install). */
+async function bundledPacks() {
+  const m = load();
+  if (!m) return [];
+  const packs = await m.OfflineManager.getPacks();
+  return packs.filter(p => String(p.metadata?.name ?? '').startsWith(BUNDLED_PREFIX));
+}
+
+/** True when every built-in area is installed (waits for a running install). */
 export async function bundledMapInstalled(): Promise<boolean> {
   if (installing) await installing.catch(() => undefined);
-  const pack = await findPack(BUNDLED_PACK_NAME);
-  if (!pack) return false;
-  const st = await pack.status();
-  return st.state === 'complete' || st.percentage >= 100;
+  const names = new Set((await bundledPacks()).map(p => String(p.metadata.name)));
+  return BUNDLED_AREAS.every(a => names.has(a.name));
 }
 
 /**
- * Install the built-in Colombo map from the APK (once; later starts see the
- * pack and do nothing). Never throws: the map simply needs internet then.
+ * Install the built-in map from the APK (once; later starts see the packs
+ * and do nothing). An older built-in map (Colombo only) is replaced.
+ * Never throws: the map simply needs internet then.
  */
 export function installBundledMap(): Promise<'installed' | 'present' | 'unavailable'> {
   const p = installBundledMapOnce();
@@ -112,18 +158,21 @@ async function installBundledMapOnce(): Promise<'installed' | 'present' | 'unava
   const m = load();
   if (!m) return 'unavailable';
   try {
-    if (await findPack(BUNDLED_PACK_NAME)) return 'present';
+    const have = await bundledPacks();
+    const names = new Set(have.map(p => String(p.metadata.name)));
+    if (BUNDLED_AREAS.every(a => names.has(a.name))) return 'present';
+    for (const p of have) await m.OfflineManager.deletePack(p.id);
     const { Asset } = require('expo-asset') as typeof import('expo-asset');
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const asset = Asset.fromModule(require('../../assets/map/colombo-offline.db'));
+    const asset = Asset.fromModule(require('../../assets/map/srilanka-offline.db'));
     await asset.downloadAsync();
     if (!asset.localUri) throw new Error('asset not copied');
     await m.OfflineManager.mergeOfflineRegions(decodeURI(asset.localUri.replace(/^file:\/\//, '')));
     // The library caches the pack list after its first read: read it again
     (m.OfflineManager as unknown as { initialized: boolean }).initialized = false;
-    const ok = await findPack(BUNDLED_PACK_NAME);
-    console.log('[OfflineMap] built-in Colombo map', ok ? 'installed' : 'merge gave no pack');
-    return ok ? 'installed' : 'unavailable';
+    const got = (await bundledPacks()).map(p => String(p.metadata.name));
+    console.log('[OfflineMap] built-in Sri Lanka map:', got.length ? got.join(', ') : 'merge gave no pack');
+    return got.length ? 'installed' : 'unavailable';
   } catch (e: any) {
     console.warn('[OfflineMap] built-in map not installed:', e?.message ?? e);
     return 'unavailable';
@@ -131,29 +180,34 @@ async function installBundledMapOnce(): Promise<'installed' | 'present' | 'unava
 }
 
 /**
- * Developer step (laptop emulator, online): save the whole built-in area as
- * one pack, to be pulled and bundled. Not used by runners.
+ * Developer step (laptop emulator, online): save every built-in area as its
+ * own pack, to be pulled and bundled. Not used by runners. Returns bytes.
  */
-export async function buildBundledPack(onProgress: (percentage: number) => void): Promise<number> {
+export async function buildBundledPack(onProgress: (note: string) => void): Promise<number> {
   const m = load();
   if (!m) throw new Error('Offline maps need the latest app build.');
+  m.OfflineManager.setTileCountLimit(20000);
   for (const p of await m.OfflineManager.getPacks()) await m.OfflineManager.deletePack(p.id);
-  return new Promise<number>((resolve, reject) => {
-    m.OfflineManager.createPack(
-      {
-        mapStyle: MAP_STYLE_URL,
-        bounds: BUNDLED_BOUNDS,
-        minZoom: OFFLINE_MIN_ZOOM,
-        maxZoom: BUNDLED_MAX_ZOOM,
-        metadata: { name: BUNDLED_PACK_NAME, savedAt: Date.now() },
-      },
-      (_pack, status) => {
-        onProgress(status.percentage);
-        if (status.state === 'complete' || status.percentage >= 100) resolve(status.completedResourceSize);
-      },
-      (_pack, error) => reject(new Error(error.message || 'Download failed')),
-    ).catch(reject);
-  });
+  let total = 0;
+  for (const [i, a] of BUNDLED_AREAS.entries()) {
+    total += await new Promise<number>((resolve, reject) => {
+      m.OfflineManager.createPack(
+        {
+          mapStyle: MAP_STYLE_URL,
+          bounds: a.bounds,
+          minZoom: a.minZoom,
+          maxZoom: a.maxZoom,
+          metadata: { name: a.name, savedAt: Date.now() },
+        },
+        (_pack, status) => {
+          onProgress(`${a.label} (${i + 1}/${BUNDLED_AREAS.length}): ${Math.round(status.percentage)}%`);
+          if (status.state === 'complete' || status.percentage >= 100) resolve(status.completedResourceSize);
+        },
+        (_pack, error) => reject(new Error(`${a.label}: ${error.message || 'Download failed'}`)),
+      ).catch(reject);
+    });
+  }
+  return total;
 }
 
 /** The saved area, or null if none has been downloaded. */
