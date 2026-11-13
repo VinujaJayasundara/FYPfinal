@@ -159,6 +159,8 @@ export function StatTile({
   style,
   valueColor,
   accent,
+  onInfo,
+  infoLabel,
 }: {
   icon?: React.ReactNode;
   label: string;
@@ -169,9 +171,23 @@ export function StatTile({
   style?: StyleProp<ViewStyle>;
   valueColor?: string;
   accent?: Accent;
+  /** Shows a "!" button in the top-right corner (e.g. how the score is worked out). */
+  onInfo?: () => void;
+  infoLabel?: string;
 }) {
   const inner = (
     <>
+      {onInfo ? (
+        <TouchableOpacity
+          onPress={onInfo}
+          style={styles.tileInfo}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel={infoLabel ?? `How ${label} works`}
+        >
+          <Ionicons name="alert-circle-outline" size={20} color={colors.textDim} />
+        </TouchableOpacity>
+      ) : null}
       {icon ? <View style={{ marginBottom: space.sm }}>{icon}</View> : null}
       <T variant="label">{label}</T>
       <View style={styles.valueRow}>
@@ -394,6 +410,7 @@ const styles = StyleSheet.create({
   },
   iconCircle: { alignItems: 'center', justifyContent: 'center' },
   tile: { flex: 1 },
+  tileInfo: { position: 'absolute', top: 12, right: 12, zIndex: 2 },
   valueRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 2 },
   button: {
     height: buttonStyle.height,

@@ -3,7 +3,10 @@
  *   greeting · week strip (days run in lime) · "Your progress" grid (last
  *   run map with time/pace, NPI and RII tiles) · recent runs · friends ·
  *   NPI trend · explainers. During the first 5 runs the score tiles show the
- *   baseline progress instead (5-run calibration).
+ *   baseline progress instead (5-run calibration), and the NPI trend and
+ *   explainer move up above the recent runs (explainer open) so the runner
+ *   learns how NPI works while the baseline builds. The "!" on the NPI (or
+ *   Baseline) tile opens the worked calculation for the latest run.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -32,6 +35,7 @@ import { calculateRII, getRIIStatus } from '../core/algorithms';
 import { FinishedMap } from '../components/RunMap';
 import Avatar from '../components/Avatar';
 import { RunDetail } from './HistoryScreen';
+import NpiBreakdownSheet from '../components/NpiBreakdownSheet';
 import { Card, GlassCard, Icon, IconButton, IconCircle, SectionTitle, StatTile, T } from '../components/ui';
 import { colors, fonts, radius, runColor, space } from '../theme/tokens';
 
@@ -171,7 +175,24 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
   const [races, setRaces] = useState<RaceSummary | null>(null);
   const [peers, setPeers] = useState<DBPeer[]>([]);
   const [open, setOpen] = useState<RunHistoryItem | null>(null);
-  const [showExplain, setShowExplain] = useState(false);
+  // null = default: open during the baseline runs, closed afterwards
+  const [showExplain, setShowExplain] = useState<boolean | null>(null);
+  // "!" on the NPI tile: worked calculation for one saved run
+  const [npiInfo, setNpiInfo] = useState<{ run: RunHistoryItem; altitudeM: number | null } | null>(null);
+  const openNpiInfo = useCallback(async (run: RunHistoryItem | null) => {
+    if (!run) return;
+    let altitudeM: number | null = null;
+    try {
+      // the score uses the run-mean altitude of the counted (saved) points
+      const alts = (await getSessionTelemetry(run.sessionId))
+        .map(p => p.altitude)
+        .filter((a): a is number => a !== null && a !== undefined && isFinite(a));
+      if (alts.length) altitudeM = alts.reduce((a, b) => a + b, 0) / alts.length;
+    } catch (e) {
+      console.warn('[Home] altitude for NPI info:', e);
+    }
+    setNpiInfo({ run, altitudeM });
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -203,6 +224,54 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
   const riiStatus = rii !== null ? getRIIStatus(rii) : null;
   const vsBase = relativeToBaseline(calibration.baselinePace, lastValid?.paceSPerKm ?? null);
   const left = calibration.needed - calibration.runs;
+  const lastScoredRun = lastScored ? runs.find(r => r.startTime === lastScored.startTime) ?? null : null;
+  const explainOpen = showExplain ?? !calibration.calibrated;
+
+  // NPI trend + explainers: above the recent runs during the baseline runs,
+  // below them once NPI is scored
+  const npiBlock = (
+    <>
+        {/* NPI trend */}
+        <SectionTitle title="NPI trend" />
+        <Card>
+          {trend.length >= 2 ? (
+            <NpiTrendChart points={trend} />
+          ) : (
+            <T variant="label">
+              {calibration.calibrated
+                ? 'Your NPI trend appears after two scored runs.'
+                : `Scores start after run ${CALIBRATION_RUNS}; the trend builds from there.`}
+            </T>
+          )}
+        </Card>
+
+        {/* Explainers */}
+        <TouchableOpacity onPress={() => setShowExplain(!explainOpen)} style={styles.explainToggle} activeOpacity={0.7}>
+          <T variant="label" style={{ fontFamily: fonts.semibold }}>
+            What do NPI and RII mean?
+          </T>
+          <Icon name={explainOpen ? 'chevron-up' : 'chevron-down'} size={16} />
+        </TouchableOpacity>
+        {explainOpen && (
+          <Card>
+            <T variant="body" style={styles.explainTitle}>NPI — fair score between people</T>
+            <T variant="label">
+              (Expected pace − your pace) / σ. The expected pace comes from the model for your age, BMI, sex, altitude and
+              distance. +1.0 means one standard deviation faster than expected for you.
+            </T>
+            <T variant="body" style={[styles.explainTitle, { marginTop: space.md }]}>RII — your own progress</T>
+            <T variant="label">PB pace / your pace. Above 1.00 = faster than your personal best.</T>
+            <T variant="body" style={[styles.explainTitle, { marginTop: space.md }]}>Baseline</T>
+            <T variant="label">
+              Your first {CALIBRATION_RUNS} runs set a baseline; scores are shown from run {CALIBRATION_RUNS}, with your pace
+              compared to the baseline.
+            </T>
+            <T variant="body" style={[styles.explainTitle, { marginTop: space.md }]}>Privacy</T>
+            <T variant="label">Runs and routes stay on this phone. Friends only receive scores and times, never locations.</T>
+          </Card>
+        )}
+    </>
+  );
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -242,6 +311,8 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
             <>
               <StatTile
                 label="NPI"
+                onInfo={() => openNpiInfo(lastScoredRun ?? lastValid)}
+                infoLabel="How NPI is worked out"
                 value={npi !== null ? formatNPI(npi) : '—'}
                 valueColor={npiStatus ? colors.npi : undefined}
                 sub={
@@ -263,6 +334,8 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
             <>
               <StatTile
                 label="Baseline"
+                onInfo={lastValid ? () => openNpiInfo(lastValid) : undefined}
+                infoLabel="How NPI will be worked out"
                 value={`${calibration.runs}/${calibration.needed}`}
                 valueColor={colors.accent}
                 sub={`${left} more run${left === 1 ? '' : 's'} to unlock NPI`}
@@ -272,6 +345,8 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
           )}
         </View>
       </View>
+
+      {!calibration.calibrated && npiBlock}
 
       {/* Recent runs */}
       {recent.length > 0 && (
@@ -323,45 +398,24 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
         </>
       ) : null}
 
-      {/* NPI trend */}
-      <SectionTitle title="NPI trend" />
-      <Card>
-        {trend.length >= 2 ? (
-          <NpiTrendChart points={trend} />
-        ) : (
-          <T variant="label">
-            {calibration.calibrated
-              ? 'Your NPI trend appears after two scored runs.'
-              : `Scores start after run ${CALIBRATION_RUNS}; the trend builds from there.`}
-          </T>
-        )}
-      </Card>
+      {calibration.calibrated && npiBlock}
 
-      {/* Explainers */}
-      <TouchableOpacity onPress={() => setShowExplain(v => !v)} style={styles.explainToggle} activeOpacity={0.7}>
-        <T variant="label" style={{ fontFamily: fonts.semibold }}>
-          What do NPI and RII mean?
-        </T>
-        <Icon name={showExplain ? 'chevron-up' : 'chevron-down'} size={16} />
-      </TouchableOpacity>
-      {showExplain && (
-        <Card>
-          <T variant="body" style={styles.explainTitle}>NPI — fair score between people</T>
-          <T variant="label">
-            (Expected pace − your pace) / σ. The expected pace comes from the model for your age, BMI, sex, altitude and
-            distance. +1.0 means one standard deviation faster than expected for you.
-          </T>
-          <T variant="body" style={[styles.explainTitle, { marginTop: space.md }]}>RII — your own progress</T>
-          <T variant="label">PB pace / your pace. Above 1.00 = faster than your personal best.</T>
-          <T variant="body" style={[styles.explainTitle, { marginTop: space.md }]}>Baseline</T>
-          <T variant="label">
-            Your first {CALIBRATION_RUNS} runs set a baseline; scores are shown from run {CALIBRATION_RUNS}, with your pace
-            compared to the baseline.
-          </T>
-          <T variant="body" style={[styles.explainTitle, { marginTop: space.md }]}>Privacy</T>
-          <T variant="label">Runs and routes stay on this phone. Friends only receive scores and times, never locations.</T>
-        </Card>
-      )}
+      <NpiBreakdownSheet
+        visible={npiInfo !== null}
+        onClose={() => setNpiInfo(null)}
+        runner={profile.physicalSaved ? { age: profile.age, bmi: profile.bmi, gender: profile.gender } : null}
+        altitudeM={npiInfo?.altitudeM ?? null}
+        distanceM={npiInfo?.run.distanceM ?? 0}
+        avgPaceSPerKm={npiInfo?.run.paceSPerKm ?? null}
+        preview={npiInfo !== null && (npiInfo.run.runNo === null || npiInfo.run.runNo < CALIBRATION_RUNS)}
+        scoredFromRun={CALIBRATION_RUNS}
+        storedNpi={npiInfo?.run.npi ?? null}
+        footnote={
+          npiInfo
+            ? `Worked out for your latest ${npiInfo.run.runNo !== null && npiInfo.run.runNo >= CALIBRATION_RUNS ? 'scored ' : ''}run (${fmtWhen(npiInfo.run.startTime)}): its distance, its average pace and its average altitude above sea level.`
+            : undefined
+        }
+      />
 
       <Modal visible={open !== null} animationType="slide" onRequestClose={() => setOpen(null)}>
         {open && <RunDetail run={open} baselinePace={calibration.baselinePace} onClose={() => setOpen(null)} />}

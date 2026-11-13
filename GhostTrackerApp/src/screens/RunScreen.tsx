@@ -54,6 +54,8 @@ import {
 } from '../components/RunMap';
 import OfflineMapButton from '../components/OfflineMapButton';
 import RunScores from '../components/RunScores';
+import NpiBreakdownSheet from '../components/NpiBreakdownSheet';
+import NpiSidePanel from '../components/NpiSidePanel';
 import { Button, Card, Icon, IconButton, IconCircle, T, glassFill } from '../components/ui';
 import { colors, fonts, radius, space } from '../theme/tokens';
 import { CALIBRATION_RUNS } from '../../../GhostTracker/src/core/fairness/calibration';
@@ -99,6 +101,9 @@ function getPositionAlongRoute(
 }
 
 // ── Main Component ────────────────────────────────────────
+
+/** Run (by start time) the NPI sheet already opened for, so it opens once per run. */
+let npiSheetShownForRun: number | null = null;
 
 export default function RunScreen() {
   const { run, initialLocation, startRun, stopRun, resetRun } = useRun();
@@ -152,7 +157,7 @@ export default function RunScreen() {
       if (run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm) && profile.age > 0) {
         const result = calculateNPI(
           { age: profile.age, weightKg: profile.weightKg, heightCm: profile.heightCm, bmi: profile.bmi, gender: profile.gender },
-          { altitudeM: run.currentAltitudeM ?? 15, distanceM: run.distanceM, avgPaceSPerKm: run.avgPaceSPerKm },
+          { altitudeM: run.meanAltitudeM ?? 15, distanceM: run.distanceM, avgPaceSPerKm: run.avgPaceSPerKm },
         );
         npi = result.npi;
       }
@@ -444,6 +449,17 @@ function RunningView({
 }) {
   const [followCamera, setFollowCamera] = useState(true);
 
+  // NPI walk-through: slides up once when the run starts, reopened from the link
+  const { profile: me } = useProfile();
+  const [showNpi, setShowNpi] = useState(false);
+  useEffect(() => {
+    if (run.startTime && npiSheetShownForRun !== run.startTime) {
+      npiSheetShownForRun = run.startTime;
+      setShowNpi(true);
+    }
+  }, [run.startTime]);
+  const npiRunner = me.physicalSaved ? { age: me.age, bmi: me.bmi, gender: me.gender } : null;
+
   // Connected race: me blue, purple route. The friend's position is never
   // shared (only distance/time), so there is no friend pin on the map.
   const { race } = useRace();
@@ -583,6 +599,16 @@ function RunningView({
             <Text style={[styles.ghostOverlayText, { color: ghostLeadColor }]}>{ghostLeadText}</Text>
           </View>
         )}
+
+        {/* Live NPI on the right edge; swipe left for the worked calculation */}
+        <NpiSidePanel
+          runner={npiRunner}
+          altitudeM={run.meanAltitudeM}
+          distanceM={run.distanceM}
+          avgPaceSPerKm={run.distanceM >= 10 && run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm) ? run.avgPaceSPerKm : null}
+          preview={calibrating}
+          scoredFromRun={CALIBRATION_RUNS}
+        />
       </View>
 
       {/* ── Panel: the numbers that matter, large ────────── */}
@@ -619,10 +645,25 @@ function RunningView({
           </Text>
         )}
 
+        <TouchableOpacity onPress={() => setShowNpi(true)} style={styles.npiLink} accessibilityRole="button">
+          <Text style={styles.npiLinkText}>How NPI is worked out ›</Text>
+        </TouchableOpacity>
+
         <View style={styles.stopRow}>
           <Button label="Stop run" icon="stop" variant="danger" onPress={onStop} style={styles.stopButton} />
         </View>
       </View>
+
+      <NpiBreakdownSheet
+        visible={showNpi}
+        onClose={() => setShowNpi(false)}
+        runner={npiRunner}
+        altitudeM={run.meanAltitudeM}
+        distanceM={run.distanceM}
+        avgPaceSPerKm={run.distanceM >= 10 && run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm) ? run.avgPaceSPerKm : null}
+        preview={calibrating}
+        scoredFromRun={CALIBRATION_RUNS}
+      />
     </View>
   );
 }
@@ -675,6 +716,7 @@ function FinishedView({
   // 5-run baseline: this run's number among valid runs
   const { calibration } = useRun();
   const { profile: me } = useProfile();
+  const [showNpi, setShowNpi] = useState(false);
   const hasPace = run.distanceM >= 10 && run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm);
   const runNo = hasPace ? run.calibrationAtStart.runs + 1 : null;
   // Baseline is fixed at run 5; on the 5th run itself it is known once saved
@@ -683,7 +725,7 @@ function FinishedView({
     hasPace && me.physicalSaved
       ? calculateNPI(
           { age: me.age, weightKg: me.weightKg, heightCm: me.heightCm, bmi: me.bmi, gender: me.gender },
-          { altitudeM: run.currentAltitudeM ?? 15, distanceM: run.distanceM, avgPaceSPerKm: run.avgPaceSPerKm },
+          { altitudeM: run.meanAltitudeM ?? 15, distanceM: run.distanceM, avgPaceSPerKm: run.avgPaceSPerKm },
         ).npi
       : null;
 
@@ -768,6 +810,21 @@ function FinishedView({
         pbPace={pbPace}
         baselinePace={baselinePace}
         npiMissingHint="save your profile"
+      />
+      {hasPace && (
+        <TouchableOpacity onPress={() => setShowNpi(true)} style={styles.npiLinkFinished} accessibilityRole="button">
+          <Text style={styles.npiLinkText}>See how this NPI was worked out ›</Text>
+        </TouchableOpacity>
+      )}
+      <NpiBreakdownSheet
+        visible={showNpi}
+        onClose={() => setShowNpi(false)}
+        runner={me.physicalSaved ? { age: me.age, bmi: me.bmi, gender: me.gender } : null}
+        altitudeM={run.meanAltitudeM}
+        distanceM={run.distanceM}
+        avgPaceSPerKm={hasPace ? run.avgPaceSPerKm : null}
+        preview={runNo !== null && runNo < CALIBRATION_RUNS}
+        scoredFromRun={CALIBRATION_RUNS}
       />
 
       {/* GPS Stats */}
@@ -1302,6 +1359,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     marginTop: 2,
   },
+  npiLink: { alignSelf: 'center', paddingVertical: 6, paddingHorizontal: 12, marginTop: 2 },
+  npiLinkFinished: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 12, marginBottom: 8 },
+  npiLinkText: { fontFamily: 'Urbanist_600SemiBold', fontSize: 13, color: colors.npi },
   smallLine: {
     color: colors.textDim,
     fontSize: 14,

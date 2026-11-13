@@ -36,6 +36,7 @@ import {
 } from '../core/algorithms';
 import { TrackProcessor } from '../../../GhostTracker/src/core/spatial/trackProcessor';
 import { RollingPaceWindow } from '../../../GhostTracker/src/core/spatial/paceCalculator';
+import { toSeaLevelAltitude, RunAltitude } from '../../../GhostTracker/src/core/spatial/geoid';
 import { GHOST_CHECKPOINT_INTERVAL_M } from '../../../GhostTracker/src/utils/constants';
 import {
   buildGhostCheckpoints,
@@ -100,7 +101,10 @@ export interface RunState {
   distanceM: number;
   elevationGainM: number;
   elevationLossM: number;
+  /** Sea-level altitude of the latest accepted fix (EGM96-corrected). */
   currentAltitudeM: number | null;
+  /** Mean sea-level altitude of the run so far: the NPI model's altitude input. */
+  meanAltitudeM: number | null;
   currentPaceSPerKm: number;
   avgPaceSPerKm: number;
   points: GPSPoint[];
@@ -151,6 +155,7 @@ const INITIAL_RUN: RunState = {
   elevationGainM: 0,
   elevationLossM: 0,
   currentAltitudeM: null,
+  meanAltitudeM: null,
   currentPaceSPerKm: 0,
   avgPaceSPerKm: 0,
   points: [],
@@ -205,6 +210,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
   const ghostPacerRef = useRef<GhostPacer | null>(null);
   const lastValidRef = useRef<GPSPoint | null>(null);
   const distanceRef = useRef(0);
+  const altitudeRef = useRef(new RunAltitude());
   const startTimeRef = useRef(0);
   const kmSplitsRef = useRef<number[]>([]);
 
@@ -269,13 +275,16 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   const handleLocation = useCallback((location: Location.LocationObject, silent = false) => {
     const nowMs = silent ? location.timestamp : Date.now();
+    // Phones report altitude above the WGS84 ellipsoid; the model needs metres
+    // above sea level (≈ +95 m over Sri Lanka). The journal keeps the raw value.
+    const rawAltitude = location.coords.altitude ?? null;
     const point: GPSPoint = {
       latitude: location.coords.latitude,
       longitude: location.coords.longitude,
       timestamp: location.timestamp,
       speed: location.coords.speed,
       accuracy: location.coords.accuracy,
-      altitude: location.coords.altitude ?? null,
+      altitude: toSeaLevelAltitude(rawAltitude, location.coords.latitude, location.coords.longitude),
       seqIndex: seqIndexRef.current++,
       filtered: false,
     };
@@ -287,7 +296,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
         latitude: point.latitude,
         longitude: point.longitude,
         accuracy: point.accuracy,
-        altitude: point.altitude,
+        altitude: rawAltitude,
         speed: point.speed,
       }]).catch(e => console.warn('[Journal] fix not saved:', e));
     }
@@ -324,6 +333,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
       const prevValid = lastValidRef.current;
       lastValidRef.current = smooth;
       if (prevValid) elevDelta = calculateElevationDelta(prevValid.altitude, smooth.altitude);
+      altitudeRef.current.push(smooth.altitude);
     }
     distanceRef.current = res.distanceM;
     const distanceM = distanceRef.current;
@@ -375,6 +385,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
         elevationGainM: prev.elevationGainM + elevDelta.gain,
         elevationLossM: prev.elevationLossM + elevDelta.loss,
         currentAltitudeM: smooth.altitude,
+        meanAltitudeM: altitudeRef.current.meanM,
         currentPaceSPerKm: rollingPace,
         avgPaceSPerKm: calculatePace(distanceM, elapsed),
         splitPaces,
@@ -416,6 +427,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
     ghostPacerRef.current = new GhostPacer(ghostCheckpoints);
     lastValidRef.current = null;
     distanceRef.current = 0;
+    altitudeRef.current.reset();
     kmSplitsRef.current = [];
   }, []);
 
@@ -629,7 +641,8 @@ export function RunProvider({ children }: { children: ReactNode }) {
                 gender: userProfile.gender as 'M' | 'F',
               },
               {
-                altitudeM: finishedRun.currentAltitudeM ?? 15,
+                // run-mean sea-level altitude (thesis x3); 15 m only if the phone gave no altitude
+                altitudeM: finishedRun.meanAltitudeM ?? 15,
                 distanceM: finishedRun.distanceM,
                 avgPaceSPerKm: finishedRun.avgPaceSPerKm,
               },
