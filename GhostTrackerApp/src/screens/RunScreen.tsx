@@ -107,7 +107,7 @@ function getPositionAlongRoute(
 let npiSheetShownForRun: number | null = null;
 
 export default function RunScreen() {
-  const { run, initialLocation, startRun, stopRun, resetRun } = useRun();
+  const { run, initialLocation, relocate, startRun, stopRun, resetRun } = useRun();
   const { profile } = useProfile();
   const mapRef = useRef<any>(null);
 
@@ -208,14 +208,14 @@ export default function RunScreen() {
   };
 
   if (run.status === 'idle') {
-    return <IdleView onStart={startRun} initialLocation={initialLocation} competition={competitionProps} />;
+    return <IdleView onStart={startRun} initialLocation={initialLocation} onRelocate={relocate} competition={competitionProps} />;
   }
 
   if (run.status === 'finished') {
     return <FinishedView run={run} onReset={resetRun} />;
   }
 
-  return <RunningView run={run} onStop={stopRun} mapRef={mapRef} competition={competitionProps} profile={profile} />;
+  return <RunningView run={run} onStop={stopRun} onRelocate={relocate} mapRef={mapRef} competition={competitionProps} profile={profile} />;
 }
 
 // ── Competition Props Type ────────────────────────────────
@@ -241,12 +241,26 @@ interface CompetitionProps {
 function IdleView({
   onStart,
   initialLocation,
+  onRelocate,
   competition,
 }: {
   onStart: () => void;
   initialLocation: { latitude: number; longitude: number } | null;
+  onRelocate: () => Promise<unknown>;
   competition: CompetitionProps;
 }) {
+  // The map follows the live GPS position until the user pans it; the
+  // re-centre button takes a fresh high-accuracy fix and flies back to it.
+  const [follow, setFollow] = useState(true);
+  const [focusKey, setFocusKey] = useState(0);
+  const [locating, setLocating] = useState(false);
+  const recenter = useCallback(async () => {
+    setFollow(true);
+    setFocusKey(k => k + 1); // jump to the latest position straight away
+    setLocating(true);
+    await onRelocate(); // then to the fresh fix when it arrives (follow is on)
+    setLocating(false);
+  }, [onRelocate]);
   const region = initialLocation
     ? {
         latitude: initialLocation.latitude,
@@ -271,8 +285,18 @@ function IdleView({
     <View style={styles.idleContainer}>
       {/* Map: your surroundings, full screen */}
       <View style={StyleSheet.absoluteFill}>
-        <IdleMap region={region} />
+        <IdleMap region={region} follow={follow} focusKey={focusKey} onUserPan={() => setFollow(false)} />
       </View>
+
+      {Platform.OS !== 'web' && (
+        <IconButton
+          icon={locating ? 'locate-outline' : 'locate'}
+          onPress={recenter}
+          disabled={locating}
+          accessibilityLabel="Find my location"
+          style={styles.idleRecenterBtn}
+        />
+      )}
 
       {/* Top card: what kind of run, GPS state */}
       <View style={styles.preTop}>
@@ -438,12 +462,14 @@ function IdleView({
 function RunningView({
   run,
   onStop,
+  onRelocate,
   mapRef,
   competition,
   profile,
 }: {
   run: RunState;
   onStop: () => void;
+  onRelocate: () => Promise<{ latitude: number; longitude: number } | null>;
   mapRef: React.MutableRefObject<any>;
   competition: CompetitionProps;
   profile: { age: number; weightKg: number; heightCm: number; bmi: number; gender: 'M' | 'F'; name: string };
@@ -536,6 +562,16 @@ function RunningView({
     : `${Math.round(Math.abs(peerLead))}m behind`;
   const peerLeadColor = peerLead >= 0 ? colors.accent : colors.danger;
 
+  // Re-centre: follow again, and fly to a fresh high-accuracy GPS fix (the
+  // runner marker is the smoothed track position, which can lag a moment)
+  const recenter = useCallback(async () => {
+    setFollowCamera(true);
+    const here = await onRelocate();
+    if (here && mapRef.current) {
+      animateMapToRegion(mapRef, { latitude: here.latitude, longitude: here.longitude, latitudeDelta: 0.004, longitudeDelta: 0.004 }, 500);
+    }
+  }, [onRelocate, mapRef]);
+
   // Auto-follow camera (peers share no coordinates, so only the local runner is followed)
   useEffect(() => {
     if (followCamera && currentPosition && mapRef.current) {
@@ -592,7 +628,7 @@ function RunningView({
         </View>
 
         {!followCamera && Platform.OS !== 'web' && (
-          <IconButton icon="locate" onPress={() => setFollowCamera(true)} accessibilityLabel="Re-centre map" style={styles.recenterBtn} />
+          <IconButton icon="locate" onPress={recenter} accessibilityLabel="Re-centre map" style={styles.recenterBtn} />
         )}
 
         {hasGhost && (
@@ -1451,6 +1487,13 @@ const styles = StyleSheet.create({
   },
   gpsCount: { fontFamily: 'Urbanist_400Regular', fontSize: 10, color: colors.textDim, marginLeft: 4 },
 
+  idleRecenterBtn: {
+    position: 'absolute',
+    top: 136, // below the "Solo run" card
+    right: 16,
+    zIndex: 6,
+    backgroundColor: colors.overlay,
+  },
   recenterBtn: {
     position: 'absolute',
     bottom: 30, // the map ends above the numbers panel

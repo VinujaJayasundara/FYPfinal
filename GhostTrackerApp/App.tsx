@@ -20,8 +20,6 @@ import {
   StyleSheet,
   StatusBar,
   Platform,
-  Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { formatPace, formatTime, calculateRII, getRIIStatus } from './src/core/algorithms';
 import { formatNPI, getNPIStatus } from './src/core/npiEngine';
@@ -59,6 +57,7 @@ import { SyncTab } from './src/screens/SyncTab';
 // Components
 import UserBadge from './src/components/UserBadge';
 import FloatingRunIndicator from './src/components/FloatingRunIndicator';
+import GhostRunnerLoader from './src/components/GhostRunnerLoader';
 import BatteryLogger from './src/components/BatteryLogger';
 import RunPeerTracker from './src/components/RunPeerTracker';
 import DiagnosticsScreen from './src/screens/DiagnosticsScreen';
@@ -73,7 +72,7 @@ import {
   Urbanist_800ExtraBold,
 } from '@expo-google-fonts/urbanist';
 import { colors, fonts } from './src/theme/tokens';
-import { IconButton, Pill, ScreenHeader, glassFill } from './src/components/ui';
+import { ConfirmDialog, IconButton, Pill, ScreenHeader, glassFill } from './src/components/ui';
 
 // ── Design Tokens ─────────────────────────────────────────
 const C = {
@@ -180,6 +179,12 @@ const TABS: { key: TabKey; label: string; Icon: React.FC<{ active: boolean }> }[
 
 export default function App() {
   const [dbReady, setDbReady] = useState(false);
+  // Keep the running-ghost loading animation up long enough to be seen
+  const [introDone, setIntroDone] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setIntroDone(true), 1600);
+    return () => clearTimeout(t);
+  }, []);
   const [fontsLoaded, fontError] = useFonts({
     Urbanist_400Regular,
     Urbanist_500Medium,
@@ -210,13 +215,22 @@ export default function App() {
   }, []);
 
   // Wait for the database and the font (a font error falls back to the system font)
-  if (!dbReady || (!fontsLoaded && !fontError)) {
+  if (!dbReady || (!fontsLoaded && !fontError) || !introDone) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
-        <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={{ fontFamily: 'Urbanist_400Regular', color: colors.textDim, marginTop: 16, fontSize: 12, letterSpacing: 2 }}>
-          INITIALIZING...
+        <GhostRunnerLoader />
+        <Text
+          style={{
+            fontFamily: fontsLoaded ? 'Urbanist_700Bold' : undefined,
+            fontWeight: fontsLoaded ? undefined : '700',
+            color: colors.text,
+            marginTop: 20,
+            fontSize: 22,
+            letterSpacing: 1,
+          }}
+        >
+          EquiStride
         </Text>
       </View>
     );
@@ -251,34 +265,34 @@ function AppContent() {
   /**
    * Tab press handler with navigation confirmation during active runs.
    */
+  // Tab the runner asked to switch to during a run (in-app confirm dialog)
+  const [pendingTab, setPendingTab] = useState<TabKey | null>(null);
   const handleTabPress = useCallback((tabKey: TabKey) => {
     if (tabKey === activeTab) return;
-
     if (run.status !== 'running') {
       setActiveTab(tabKey);
       return;
     }
-
-    if (Platform.OS === 'web') {
-      const proceed = window.confirm(
-        'You have an active run.\nYour run will continue in the background. Switch tabs?',
-      );
-      if (proceed) setActiveTab(tabKey);
-    } else {
-      Alert.alert(
-        'Active Run',
-        'Your run will continue tracking in the background. Switch tabs?',
-        [
-          { text: 'Stay', style: 'cancel' },
-          { text: 'Switch', onPress: () => setActiveTab(tabKey) },
-        ],
-      );
-    }
+    setPendingTab(tabKey);
   }, [activeTab, run.status]);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+
+      <ConfirmDialog
+        visible={pendingTab !== null}
+        icon="walk-outline"
+        title="Run in progress"
+        message="Your run keeps recording in the background. Tap the run bar at the top to come back."
+        confirmLabel="Switch"
+        cancelLabel="Stay"
+        onCancel={() => setPendingTab(null)}
+        onConfirm={() => {
+          if (pendingTab) setActiveTab(pendingTab);
+          setPendingTab(null);
+        }}
+      />
 
       <DiagnosticsScreen
         visible={diagnosticsOpen}
@@ -350,14 +364,19 @@ function AppContent() {
           if (tab.key === 'run') {
             const recording = run.status === 'running';
             return (
+              // Greyed out and disabled during a run, so it is not mistaken
+              // for a stop button: the run is stopped with "Stop run" on the
+              // Run screen, and the floating run bar leads back to it.
               <TouchableOpacity
                 key={tab.key}
                 style={styles.tab}
                 onPress={() => handleTabPress('run')}
-                accessibilityLabel={recording ? 'Back to the run' : 'Start a run'}
+                disabled={recording}
+                accessibilityLabel={recording ? 'Run in progress' : 'Start a run'}
+                accessibilityState={{ disabled: recording }}
               >
-                <View style={[styles.runButton, recording && styles.runButtonRecording, isActive && styles.runButtonActive]}>
-                  {recording ? <View style={styles.runButtonDot} /> : <View style={styles.runButtonPlay} />}
+                <View style={[styles.runButton, recording ? styles.runButtonDisabled : isActive && styles.runButtonActive]}>
+                  <View style={[styles.runButtonPlay, recording && styles.runButtonPlayDisabled]} />
                 </View>
               </TouchableOpacity>
             );
@@ -539,14 +558,14 @@ const styles = StyleSheet.create({
     borderWidth: 4, borderColor: C.bg,
   },
   runButtonActive: { transform: [{ scale: 1.06 }] },
-  runButtonRecording: { backgroundColor: C.red },
+  runButtonDisabled: { backgroundColor: colors.elevated },
+  runButtonPlayDisabled: { borderLeftColor: colors.textFaint },
   runButtonPlay: {
     width: 0, height: 0, marginLeft: 4,
     borderLeftWidth: 16, borderLeftColor: colors.onAccent,
     borderTopWidth: 10, borderTopColor: 'transparent',
     borderBottomWidth: 10, borderBottomColor: 'transparent',
   },
-  runButtonDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.white },
   tabActiveDot: {
     width: 4, height: 4, borderRadius: 2, backgroundColor: C.accent,
     position: 'absolute', top: -2,

@@ -25,6 +25,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { Alert, Platform } from 'react-native';
+import { ConfirmDialog } from '../components/ui';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import { startRunTracking, stopRunTracking } from '../core/backgroundLocation';
@@ -131,7 +132,9 @@ export interface RunState {
 
 interface RunContextValue {
   run: RunState;
-  initialLocation: { latitude: number; longitude: number } | null;
+  initialLocation: Here | null;
+  /** Takes a fresh high-accuracy GPS fix (re-centre button) and returns it. */
+  relocate: () => Promise<Here | null>;
   startRun: () => Promise<void>;
   stopRun: () => void;
   /** End the run immediately without the confirmation dialog. */
@@ -187,14 +190,24 @@ export function useRun(): RunContextValue {
   return ctx;
 }
 
+/** A GPS position with its accuracy (metres), for the map. */
+export interface Here {
+  latitude: number;
+  longitude: number;
+  accuracyM: number | null;
+}
+
+const toHere = (loc: Location.LocationObject): Here => ({
+  latitude: loc.coords.latitude,
+  longitude: loc.coords.longitude,
+  accuracyM: loc.coords.accuracy ?? null,
+});
+
 // ── Provider ──────────────────────────────────────────────
 
 export function RunProvider({ children }: { children: ReactNode }) {
   const [run, setRun] = useState<RunState>(INITIAL_RUN);
-  const [initialLocation, setInitialLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
+  const [initialLocation, setInitialLocation] = useState<Here | null>(null);
 
   // Refs survive re-renders and are not tied to any particular screen
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -216,32 +229,45 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   // ── Acquire initial location on mount ───────────────────
 
-  // GPS often has no fix yet when the app opens (phone just started, GPS
-  // just switched on), so keep trying every 5 s until the first position.
+  // Where the runner is before a run (map on the Run screen). A live GPS
+  // watch while no run is recording, so the position is always current; the
+  // phone's cached last position is only used as a placeholder when it is
+  // under 2 minutes old (an older one can be far away). During a run the
+  // tracking pipeline provides the position instead.
   useEffect(() => {
+    if (Platform.OS === 'web' || run.status === 'running') return;
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const attempt = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted' || cancelled) return;
-        const loc =
-          (await Location.getLastKnownPositionAsync().catch(() => null)) ??
-          (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High })); // GPS, not just Wi-Fi/network
-        if (!cancelled && loc) {
-          setInitialLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
-          return;
-        }
-      } catch {
-        // no fix yet (or GPS unavailable on web): try again below
-      }
-      if (!cancelled && Platform.OS !== 'web') timer = setTimeout(attempt, 5000);
-    };
-    attempt();
+    let sub: Location.LocationSubscription | null = null;
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted' || cancelled) return;
+      const last = await Location.getLastKnownPositionAsync({ maxAge: 120_000, requiredAccuracy: 100 }).catch(() => null);
+      if (last && !cancelled) setInitialLocation(prev => prev ?? toHere(last));
+      const s = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 2000, distanceInterval: 2 },
+        loc => setInitialLocation(toHere(loc)),
+      );
+      if (cancelled) s.remove();
+      else sub = s;
+    })().catch(e => console.warn('[GPS] idle watch:', e));
     return () => {
       cancelled = true;
-      if (timer) clearTimeout(timer);
+      sub?.remove();
     };
+  }, [run.status]);
+
+  /** Fresh, most accurate GPS fix now (re-centre buttons); null if none in time. */
+  const relocate = useCallback(async (): Promise<Here | null> => {
+    if (Platform.OS === 'web') return null;
+    try {
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+      const here = toHere(loc);
+      setInitialLocation(here);
+      return here;
+    } catch (e) {
+      console.warn('[GPS] relocate:', e);
+      return null;
+    }
   }, []);
 
   // ── Timer — ticks every second while running ────────────
@@ -515,6 +541,9 @@ export function RunProvider({ children }: { children: ReactNode }) {
     console.log(`[Journal] recovered run ${new Date(rec.runStartedAt).toISOString()} (${rec.fixes.length} fixes)`);
   }, [handleLocation, loadGhost, resetPipeline]);
 
+  // Run found in the crash journal on start: asked in an in-app dialog
+  const [recovery, setRecovery] = useState<{ rec: { runStartedAt: number; fixes: JournalFix[] }; message: string } | null>(null);
+
   useEffect(() => {
     if (Platform.OS === 'web') return;
     (async () => {
@@ -532,17 +561,12 @@ export function RunProvider({ children }: { children: ReactNode }) {
       const started = new Date(rec.runStartedAt).toLocaleString([], {
         weekday: 'short', hour: '2-digit', minute: '2-digit',
       });
-      Alert.alert(
-        'Unfinished run found',
-        `The app was closed during your run on ${started} (about ${mins} min, ${rec.fixes.length} GPS fixes). Save what was recorded?`,
-        [
-          { text: 'Discard', style: 'destructive', onPress: () => { clearRunJournal().catch(() => {}); } },
-          { text: 'Save run', onPress: () => { recoverRun(rec); } },
-        ],
-        { cancelable: false },
-      );
+      setRecovery({
+        rec,
+        message: `The app was closed during your run on ${started} (about ${mins} min, ${rec.fixes.length} GPS fixes). Save what was recorded?`,
+      });
     })();
-  }, [recoverRun]);
+  }, []);
 
   // ── DB version counter — bumped after each successful persist ──
   const [dbVersion, setDbVersion] = useState(0);
@@ -792,9 +816,27 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   return (
     <RunContext.Provider
-      value={{ run, initialLocation, startRun, stopRun, finishRun, resetRun, dbVersion, incrementDbVersion, calibration }}
+      value={{ run, initialLocation, relocate, startRun, stopRun, finishRun, resetRun, dbVersion, incrementDbVersion, calibration }}
     >
       {children}
+      <ConfirmDialog
+        visible={recovery !== null}
+        icon="refresh-outline"
+        title="Unfinished run found"
+        message={recovery?.message}
+        confirmLabel="Save run"
+        cancelLabel="Discard"
+        dismissable={false}
+        onCancel={() => {
+          setRecovery(null);
+          clearRunJournal().catch(() => {});
+        }}
+        onConfirm={() => {
+          const r = recovery;
+          setRecovery(null);
+          if (r) recoverRun(r.rec);
+        }}
+      />
     </RunContext.Provider>
   );
 }

@@ -195,16 +195,44 @@ const markerStyles = StyleSheet.create({
 
 // ── Idle Map ──────────────────────────────────────────────
 
-export function IdleMap({ region }: { region: Region }) {
+export function IdleMap({
+  region,
+  follow = true,
+  focusKey = 0,
+  onUserPan,
+}: {
+  region: Region;
+  /** Keep the camera on the position as it updates (off after the user pans). */
+  follow?: boolean;
+  /** Changes when the re-centre button is pressed: fly back to the position. */
+  focusKey?: number;
+  onUserPan?: () => void;
+}) {
   const style = useMapStyle();
   const camera = useRef<CameraRef>(null);
-  // GPS often arrives after the screen opens: move to it when it does
+  // GPS often arrives after the screen opens and keeps updating: follow it
   useEffect(() => {
-    camera.current?.easeTo({ center: toLngLat(region), duration: 600 });
-  }, [region.latitude, region.longitude]);
+    if (follow) camera.current?.easeTo({ center: toLngLat(region), duration: 600 });
+  }, [region.latitude, region.longitude, follow]);
+  // Re-centre: back to the position at the starting zoom
+  useEffect(() => {
+    if (focusKey === 0) return;
+    camera.current?.easeTo({
+      center: toLngLat(region),
+      zoom: zoomForDelta(region.latitudeDelta, region.latitude),
+      duration: 600,
+    });
+  }, [focusKey]);
 
   return (
-    <Map style={StyleSheet.absoluteFill} {...MAP_DEFAULTS} {...style}>
+    <Map
+      style={StyleSheet.absoluteFill}
+      {...MAP_DEFAULTS}
+      {...style}
+      onRegionWillChange={e => {
+        if ((e.nativeEvent as any)?.userInteraction) onUserPan?.();
+      }}
+    >
       <Camera
         ref={camera}
         initialViewState={{ center: toLngLat(region), zoom: zoomForDelta(region.latitudeDelta, region.latitude) }}

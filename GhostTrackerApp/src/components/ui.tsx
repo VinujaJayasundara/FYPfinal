@@ -416,6 +416,7 @@ export function ConfirmDialog({
   confirmVariant = 'primary',
   confirmIcon,
   cancelLabel = 'Cancel',
+  dismissable = true,
   onConfirm,
   onCancel,
 }: {
@@ -429,12 +430,14 @@ export function ConfirmDialog({
   confirmVariant?: ButtonVariant;
   confirmIcon?: IconName;
   cancelLabel?: string;
+  /** false: tapping outside or Back does nothing (the choice must be made with a button). */
+  dismissable?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onCancel}>
-      <Pressable style={styles.dialogScrim} onPress={onCancel} accessibilityLabel={cancelLabel}>
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={dismissable ? onCancel : () => {}}>
+      <Pressable style={styles.dialogScrim} onPress={dismissable ? onCancel : undefined} accessibilityLabel={cancelLabel}>
         <Pressable style={styles.dialog} onPress={() => {}}>
           {icon ? (
             <IconCircle size={56} style={styles.dialogIcon}>

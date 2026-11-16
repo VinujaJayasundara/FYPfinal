@@ -59,7 +59,7 @@ if(current)L.marker(current,{icon:L.divIcon({className:'',html:'<div style="posi
 
 // ── Exported Map Components ───────────────────────────────
 
-export function IdleMap({ region }: { region: Region }) {
+export function IdleMap({ region }: { region: Region; follow?: boolean; focusKey?: number; onUserPan?: () => void }) {
   const html = buildLeafletHTML({
     center: { latitude: region.latitude, longitude: region.longitude },
     zoom: 16,

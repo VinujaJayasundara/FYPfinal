@@ -15,7 +15,7 @@ function Placeholder() {
 }
 
 export const darkMapStyle: any[] = [];
-export const IdleMap = (_: { region: unknown }) => <Placeholder />;
+export const IdleMap = (_: { region: unknown; follow?: boolean; focusKey?: number; onUserPan?: () => void }) => <Placeholder />;
 export const RunningMap = (_: Record<string, unknown>) => <Placeholder />;
 export const FinishedMap = (_: Record<string, unknown>) => <Placeholder />;
 export function animateMapToRegion(_mapRef: unknown, _region: unknown, _duration?: number) {}
