@@ -211,7 +211,7 @@ export function SyncTab() {
       );
 
       addLog(`✨ LWW Resolution: ${result.newEntriesCount} new, ${result.updatedEntriesCount} updated`);
-      addLog(`🛡️ Social Consensus: ${result.witnessUpdates.length} witness signatures added`);
+      addLog(`🛡️ Social Consensus: ${result.witnessUpdates.length} witness records added (who relayed each entry; not signed)`);
 
       if (result.hasChanges) {
         await saveSyncState(result.mergedCRDTState, result.mergedLeaderboard, result.witnessUpdates);

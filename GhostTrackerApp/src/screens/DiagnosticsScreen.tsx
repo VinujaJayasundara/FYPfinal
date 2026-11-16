@@ -30,7 +30,10 @@ import { File, Paths } from 'expo-file-system';
 import {
   runInferenceBenchmark,
   runWalBenchmark,
+  runDeterminismCheck,
+  DETERMINISM_REFERENCE,
   WAL_CONFIGS,
+  type DeterminismResult,
   type InferenceResult,
   type WalResult,
   type Stats,
@@ -204,6 +207,23 @@ export default function DiagnosticsScreen({
     }
   }, [device]);
 
+  // Thesis ST-04: same hash as the laptop = bit-identical results on this CPU
+  const [determinism, setDeterminism] = useState<DeterminismResult | null>(null);
+  const runDeterminism = useCallback(async () => {
+    setError(null);
+    setBusy('Determinism: 1,000,000 evaluations…');
+    try {
+      await new Promise(res => setTimeout(res, 50));
+      const result = runDeterminismCheck(now);
+      console.log('[Diagnostics]', JSON.stringify({ device, determinism: result }));
+      setDeterminism(result);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setBusy(null);
+    }
+  }, [device]);
+
   const shareResults = useCallback(() => {
     const payload = {
       kind: 'equistride-diagnostics',
@@ -211,9 +231,10 @@ export default function DiagnosticsScreen({
       device,
       model: { sigma: NPI_MODEL.sigma },
       runs,
+      determinism: determinism && { ...determinism, laptopReference: DETERMINISM_REFERENCE },
     };
     Share.share({ title: 'EquiStride diagnostics', message: JSON.stringify(payload, null, 2) });
-  }, [device, runs]);
+  }, [device, runs, determinism]);
 
   const shareBattery = useCallback(async () => {
     const rows = await getBatteryLog();
@@ -334,7 +355,26 @@ export default function DiagnosticsScreen({
                 <Text style={styles.small}>Includes the JS → native call, as the app pays it.</Text>
               </>
             )}
-            {runs.length > 0 && (
+            <Text style={styles.section}>Same results as the laptop? (1,000,000 evaluations)</Text>
+            <TouchableOpacity style={[styles.button, { marginTop: 4 }]} disabled={!!busy} onPress={runDeterminism}>
+              <Text style={styles.buttonText}>CHECK BIT-IDENTICAL</Text>
+            </TouchableOpacity>
+            {determinism && (
+              <>
+                <Text style={styles.line}>This device: {determinism.hash}</Text>
+                <Text style={styles.line}>Laptop (x86_64): {DETERMINISM_REFERENCE.hash}</Text>
+                <Text style={[styles.line, { color: determinism.matchesReference ? C.accent : C.red }]}>
+                  {determinism.matchesReference
+                    ? 'MATCH: all 3,000,000 results are bit-identical'
+                    : 'DIFFERENT: results are not bit-identical'}
+                  {' '}({(determinism.ms / 1000).toFixed(1)} s)
+                </Text>
+                <Text style={styles.small}>
+                  Hash of the raw 64-bit expected pace, NPI and RII values, before rounding.
+                </Text>
+              </>
+            )}
+            {(runs.length > 0 || determinism) && (
               <>
                 <Text style={styles.small}>{runs.length} run(s) this session.</Text>
                 <TouchableOpacity style={[styles.button, { marginTop: 8 }]} onPress={shareResults}>

@@ -37,7 +37,7 @@ import {
 import { TrackProcessor } from '../../../GhostTracker/src/core/spatial/trackProcessor';
 import { RollingPaceWindow } from '../../../GhostTracker/src/core/spatial/paceCalculator';
 import { toSeaLevelAltitude, RunAltitude } from '../../../GhostTracker/src/core/spatial/geoid';
-import { GHOST_CHECKPOINT_INTERVAL_M } from '../../../GhostTracker/src/utils/constants';
+import { MIN_SCORED_DISTANCE_M } from '../../../GhostTracker/src/utils/constants';
 import {
   buildGhostCheckpoints,
   GhostPacer,
@@ -631,7 +631,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
       const userProfile = await getUserProfile();
       const hasPace = finishedRun.avgPaceSPerKm > 0 && isFinite(finishedRun.avgPaceSPerKm);
       const npiScore: number | null =
-        userProfile && hasPace && finishedRun.distanceM >= GHOST_CHECKPOINT_INTERVAL_M
+        userProfile && hasPace && finishedRun.distanceM >= MIN_SCORED_DISTANCE_M
           ? calculateNPI(
               {
                 age: userProfile.age,
@@ -666,7 +666,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
       // is kept in history but must not become the PB/ghost or reach the
       // leaderboard: its pace is undefined.
       const hasValidPace =
-        finishedRun.distanceM >= GHOST_CHECKPOINT_INTERVAL_M &&
+        finishedRun.distanceM >= MIN_SCORED_DISTANCE_M &&
         finishedRun.avgPaceSPerKm > 0 &&
         isFinite(finishedRun.avgPaceSPerKm);
       if (!hasValidPace) {
@@ -764,24 +764,12 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   // ── Stop Run ────────────────────────────────────────────
 
+  // The Run screen asks for confirmation in its own dialog before calling this.
   const stopRun = useCallback(() => {
-    const doStop = () => {
-      // Stop GPS (and the foreground service)
-      stopRunTracking();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      setRun((prev) => ({ ...prev, status: 'finished' }));
-    };
-
-    if (Platform.OS === 'web') {
-      if (window.confirm('Finish Run?\nAre you sure you want to stop?')) {
-        doStop();
-      }
-    } else {
-      Alert.alert('Finish Run?', 'Are you sure you want to stop?', [
-        { text: 'Keep Running', style: 'cancel' },
-        { text: 'Finish', style: 'destructive', onPress: doStop },
-      ]);
-    }
+    // Stop GPS (and the foreground service)
+    stopRunTracking();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    setRun((prev) => ({ ...prev, status: 'finished' }));
   }, []);
 
   // ── Reset Run ───────────────────────────────────────────

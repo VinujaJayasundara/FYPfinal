@@ -1,6 +1,6 @@
 /**
  * Scores for one run, following the 5-run baseline rule:
- *   - run too short (< 10 m): no scores
+ *   - run too short (< MIN_SCORED_DISTANCE_M, 200 m): no scores
  *   - runs 1-4 (calibration): "Baseline: N of 5 runs recorded", no scores
  *   - run 5+: NPI (thesis: vs the model's expected pace for the profile),
  *     RII (thesis: vs PB) and pace relative to the 5-run baseline
@@ -82,7 +82,7 @@ export default function RunScores({
     return (
       <View style={styles.card}>
         <Text style={styles.label}>SCORES</Text>
-        <Text style={styles.note}>Too short to score (under 10 m). Saved in history, not counted.</Text>
+        <Text style={styles.note}>Too short to score (under 200 m). Saved in history, not counted.</Text>
       </View>
     );
   }

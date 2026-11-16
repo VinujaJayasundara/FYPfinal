@@ -8,6 +8,7 @@
  */
 
 import * as SQLite from 'expo-sqlite';
+import { MIN_SCORED_DISTANCE_M } from '../../../GhostTracker/src/utils/constants';
 import {
   migrateDatabase,
   PRAGMAS_SQL,
@@ -183,14 +184,14 @@ export async function createSession(routeId: string, startTime?: number): Promis
 
 /**
  * Average pace of every finished run, oldest first; null for runs too short
- * to have a pace (< 10 m). Input for the 5-run calibration.
+ * to score (< MIN_SCORED_DISTANCE_M). Input for the 5-run calibration.
  */
 export async function getRunPacesOldestFirst(): Promise<(number | null)[]> {
   const rows = await getDb().getAllAsync<{ pace: number | null; dist: number }>(
     `SELECT avg_pace_s_per_km AS pace, total_distance AS dist FROM sessions
      WHERE end_time IS NOT NULL ORDER BY start_time ASC, created_at ASC`,
   );
-  return rows.map(r => (r.pace && r.pace > 0 && isFinite(r.pace) && r.dist >= 10 ? r.pace : null));
+  return rows.map(r => (r.pace && r.pace > 0 && isFinite(r.pace) && r.dist >= MIN_SCORED_DISTANCE_M ? r.pace : null));
 }
 
 export async function finalizeSession(
@@ -798,7 +799,7 @@ export async function getRunHistory(): Promise<RunHistoryItem[]> {
     if (race && !runPeers.some(p => p.peerId === race.friend_id)) {
       runPeers.push({ peerId: race.friend_id, alias: race.friend_alias, kind: 'race' });
     }
-    const pace = s.avg_pace_s_per_km && s.avg_pace_s_per_km > 0 && s.total_distance >= 10 ? s.avg_pace_s_per_km : null;
+    const pace = s.avg_pace_s_per_km && s.avg_pace_s_per_km > 0 && s.total_distance >= MIN_SCORED_DISTANCE_M ? s.avg_pace_s_per_km : null;
     return {
       sessionId: s.session_id,
       startTime: s.start_time,
@@ -806,8 +807,9 @@ export async function getRunHistory(): Promise<RunHistoryItem[]> {
       durationS: Math.max(s.end_time - s.start_time, s.span_ms ?? 0) / 1000,
       distanceM: s.total_distance,
       paceSPerKm: pace,
-      npi: s.npi_score,
-      rii: s.rii_score,
+      // runs too short to count show no scores (older runs may have stored one)
+      npi: pace !== null ? s.npi_score : null,
+      rii: pace !== null ? s.rii_score : null,
       isPB: s.is_pb === 1,
       peers: runPeers,
       raceOutcome: race ? (race.outcome as RunHistoryItem['raceOutcome']) : null,

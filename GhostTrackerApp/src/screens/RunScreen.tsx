@@ -56,9 +56,10 @@ import OfflineMapButton from '../components/OfflineMapButton';
 import RunScores from '../components/RunScores';
 import NpiBreakdownSheet from '../components/NpiBreakdownSheet';
 import NpiSidePanel from '../components/NpiSidePanel';
-import { Button, Card, Icon, IconButton, IconCircle, T, glassFill } from '../components/ui';
+import { Button, Card, ConfirmDialog, Icon, IconButton, IconCircle, T, glassFill } from '../components/ui';
 import { colors, fonts, radius, space } from '../theme/tokens';
 import { CALIBRATION_RUNS } from '../../../GhostTracker/src/core/fairness/calibration';
+import { MIN_SCORED_DISTANCE_M } from '../../../GhostTracker/src/utils/constants';
 import { SOLO_COLOR } from '../theme/runColors';
 
 /** Development only: the old Wi-Fi relay sync (before Bluetooth). Off. */
@@ -448,6 +449,7 @@ function RunningView({
   profile: { age: number; weightKg: number; heightCm: number; bmi: number; gender: 'M' | 'F'; name: string };
 }) {
   const [followCamera, setFollowCamera] = useState(true);
+  const [confirmStop, setConfirmStop] = useState(false);
 
   // NPI walk-through: slides up once when the run starts, reopened from the link
   const { profile: me } = useProfile();
@@ -605,7 +607,7 @@ function RunningView({
           runner={npiRunner}
           altitudeM={run.meanAltitudeM}
           distanceM={run.distanceM}
-          avgPaceSPerKm={run.distanceM >= 10 && run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm) ? run.avgPaceSPerKm : null}
+          avgPaceSPerKm={run.distanceM >= MIN_SCORED_DISTANCE_M && run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm) ? run.avgPaceSPerKm : null}
           preview={calibrating}
           scoredFromRun={CALIBRATION_RUNS}
         />
@@ -650,9 +652,39 @@ function RunningView({
         </TouchableOpacity>
 
         <View style={styles.stopRow}>
-          <Button label="Stop run" icon="stop" variant="danger" onPress={onStop} style={styles.stopButton} />
+          <Button label="Stop run" icon="stop" variant="danger" onPress={() => setConfirmStop(true)} style={styles.stopButton} />
         </View>
       </View>
+
+      <ConfirmDialog
+        visible={confirmStop}
+        icon="flag-outline"
+        title="Finish run?"
+        message="Your run will be saved and scored."
+        confirmLabel="Finish"
+        confirmVariant="danger"
+        cancelLabel="Keep running"
+        onCancel={() => setConfirmStop(false)}
+        onConfirm={() => {
+          setConfirmStop(false);
+          onStop();
+        }}
+      >
+        <View style={styles.finishStats}>
+          <View style={styles.finishStat}>
+            <T variant="value">{elapsed}</T>
+            <T variant="caption">TIME</T>
+          </View>
+          <View style={styles.finishStat}>
+            <T variant="value">{distKm}</T>
+            <T variant="caption">KM</T>
+          </View>
+          <View style={styles.finishStat}>
+            <T variant="value">{pace}</T>
+            <T variant="caption">AVG /KM</T>
+          </View>
+        </View>
+      </ConfirmDialog>
 
       <NpiBreakdownSheet
         visible={showNpi}
@@ -660,7 +692,7 @@ function RunningView({
         runner={npiRunner}
         altitudeM={run.meanAltitudeM}
         distanceM={run.distanceM}
-        avgPaceSPerKm={run.distanceM >= 10 && run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm) ? run.avgPaceSPerKm : null}
+        avgPaceSPerKm={run.distanceM >= MIN_SCORED_DISTANCE_M && run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm) ? run.avgPaceSPerKm : null}
         preview={calibrating}
         scoredFromRun={CALIBRATION_RUNS}
       />
@@ -717,7 +749,7 @@ function FinishedView({
   const { calibration } = useRun();
   const { profile: me } = useProfile();
   const [showNpi, setShowNpi] = useState(false);
-  const hasPace = run.distanceM >= 10 && run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm);
+  const hasPace = run.distanceM >= MIN_SCORED_DISTANCE_M && run.avgPaceSPerKm > 0 && isFinite(run.avgPaceSPerKm);
   const runNo = hasPace ? run.calibrationAtStart.runs + 1 : null;
   // Baseline is fixed at run 5; on the 5th run itself it is known once saved
   const baselinePace = run.calibrationAtStart.baselinePace ?? calibration.baselinePace;
@@ -1827,4 +1859,12 @@ const styles = StyleSheet.create({
   resetButtonText: {
     fontSize: 14, fontFamily: 'Urbanist_700Bold', color: colors.bg, letterSpacing: 1,
   },
+  finishStats: {
+    flexDirection: 'row',
+    marginTop: space.lg,
+    paddingVertical: space.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.elevated,
+  },
+  finishStat: { flex: 1, alignItems: 'center', gap: 2 },
 });

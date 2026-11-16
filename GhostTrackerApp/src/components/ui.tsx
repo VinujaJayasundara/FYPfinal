@@ -9,6 +9,7 @@ import React from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -398,6 +399,61 @@ export function SectionTitle({ title, right }: { title: string; right?: React.Re
   );
 }
 
+// ── Dialog ─────────────────────────────────────────────────
+
+/**
+ * In-app confirmation dialog in the app's own style (replaces the system
+ * Alert box): dark card over a scrim, icon, title, message, two buttons.
+ */
+export function ConfirmDialog({
+  visible,
+  icon,
+  iconColor = colors.text,
+  title,
+  message,
+  children,
+  confirmLabel,
+  confirmVariant = 'primary',
+  confirmIcon,
+  cancelLabel = 'Cancel',
+  onConfirm,
+  onCancel,
+}: {
+  visible: boolean;
+  icon?: IconName;
+  iconColor?: string;
+  title: string;
+  message?: string;
+  children?: React.ReactNode;
+  confirmLabel: string;
+  confirmVariant?: ButtonVariant;
+  confirmIcon?: IconName;
+  cancelLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onCancel}>
+      <Pressable style={styles.dialogScrim} onPress={onCancel} accessibilityLabel={cancelLabel}>
+        <Pressable style={styles.dialog} onPress={() => {}}>
+          {icon ? (
+            <IconCircle size={56} style={styles.dialogIcon}>
+              <Icon name={icon} size={26} color={iconColor} />
+            </IconCircle>
+          ) : null}
+          <T variant="title" style={styles.dialogTitle}>{title}</T>
+          {message ? <T variant="label" style={styles.dialogMessage}>{message}</T> : null}
+          {children}
+          <View style={styles.dialogButtons}>
+            <Button label={cancelLabel} variant="secondary" onPress={onCancel} style={styles.dialogButton} />
+            <Button label={confirmLabel} variant={confirmVariant} icon={confirmIcon} onPress={onConfirm} style={styles.dialogButton} />
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
   card: { borderRadius: radius.lg, padding: space.lg },
   glass: {
@@ -438,4 +494,17 @@ const styles = StyleSheet.create({
     marginTop: space.xl,
     marginBottom: space.md,
   },
+  dialogScrim: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'center', padding: space.xl },
+  dialog: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: space.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+  },
+  dialogIcon: { alignSelf: 'center', marginBottom: space.md },
+  dialogTitle: { textAlign: 'center' },
+  dialogMessage: { textAlign: 'center', marginTop: space.sm, lineHeight: 19 },
+  dialogButtons: { flexDirection: 'row', gap: space.md, marginTop: space.xl },
+  dialogButton: { flex: 1, paddingHorizontal: 8 },
 });

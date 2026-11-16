@@ -30,6 +30,15 @@ export const ROLLING_PACE_WINDOW_S = 10;
 /** Spacing of the personal-best checkpoints used for the ghost time gap, in meters */
 export const GHOST_CHECKPOINT_INTERVAL_M = 10;
 
+/**
+ * Shortest run that gets a pace and scores (NPI, RII), counts towards the
+ * 5-run baseline, and can become the PB or a leaderboard entry. Shorter runs
+ * stay in history as "too short": over a few metres the average pace (and so
+ * the NPI) is dominated by standing time and GPS noise, e.g. 120 m in 14 min
+ * would give NPI ≈ −281. The model itself was trained on 1–10 km routes.
+ */
+export const MIN_SCORED_DISTANCE_M = 200;
+
 // ============================================================
 // BLE Constants (Phase 4)
 // ============================================================

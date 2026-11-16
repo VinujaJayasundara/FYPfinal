@@ -15,8 +15,9 @@
  */
 
 import type { SqlDb } from '../../data/database/thesisSchema';
-import { calculateNPI } from '../fairness/npiCalculator';
+import { calculateNPI, calculateNPIScore } from '../fairness/npiCalculator';
 import { calculateRII } from '../fairness/riiEvaluator';
+import { predictExpectedPace } from '../fairness/olsInference';
 
 export interface Stats {
   n: number;
@@ -216,5 +217,71 @@ export async function runWalBenchmark(
     journalMode: String(mode[0]?.journal_mode ?? '').toLowerCase(),
     inserts,
     insertMs: summarize(times),
+  };
+}
+
+// ── Determinism (thesis ST-04: bit-identical results across CPUs) ───────────
+
+/**
+ * Hash of the laptop run (Node.js, x86_64) for the default 1,000,000 evaluations.
+ * The Jest test recomputes it on the laptop and fails if it changes, so a
+ * phone result can be compared against it on the Diagnostics screen.
+ */
+export const DETERMINISM_REFERENCE = { evaluations: 1_000_000, hash: '1ca3436b7154fb59' };
+
+export interface DeterminismResult {
+  evaluations: number;
+  /** two 32-bit multiply-xor hashes over the raw IEEE 754 bits of every result. */
+  hash: string;
+  ms: number;
+  matchesReference: boolean | null;
+}
+
+/**
+ * Runs the fairness engine `evaluations` times on seeded inputs and hashes the
+ * exact 64-bit floating-point results (expected pace, NPI, RII), unrounded.
+ * The same hash on the phone (ARM64, Hermes) and the laptop (x86_64, Node)
+ * means every result is bit-identical. Inputs use only + − × ÷ (no Math.pow),
+ * so the engine's own arithmetic is what is compared.
+ */
+export function runDeterminismCheck(now: () => number, evaluations = DETERMINISM_REFERENCE.evaluations): DeterminismResult {
+  const random = prng(42);
+  // Both CPUs are little-endian, so the two 32-bit halves line up the same way.
+  const f64 = new Float64Array(1);
+  const u32 = new Uint32Array(f64.buffer);
+  let h1 = 0x811c9dc5 | 0;
+  let h2 = 0x050c5d1f | 0;
+  const feed = (x: number) => {
+    f64[0] = x;
+    h1 = Math.imul(h1 ^ u32[0], 0x01000193);
+    h1 = Math.imul(h1 ^ u32[1], 0x01000193);
+    h2 = Math.imul(h2 ^ u32[1], 0x5bd1e995);
+    h2 = Math.imul(h2 ^ u32[0], 0x5bd1e995);
+    h2 ^= h2 >>> 15;
+  };
+  const t0 = now();
+  for (let i = 0; i < evaluations; i++) {
+    const heightM = 1.5 + random() * 0.4;
+    const weightKg = 45 + random() * 50;
+    const bmi = weightKg / (heightM * heightM);
+    const actualPace = 280 + random() * 200;
+    const age = 18 + Math.floor(random() * 45);
+    const gender: 'M' | 'F' = random() < 0.5 ? 'M' : 'F';
+    const altitudeM = random() * 2200;
+    const distanceM = 1000 + Math.floor(random() * 10) * 1000;
+    const pbPace = actualPace * (0.95 + random() * 0.1);
+    const expected = predictExpectedPace({ age, bmi, gender }, { altitudeM, distanceM });
+    feed(expected);
+    feed(calculateNPIScore(expected, actualPace));
+    feed(calculateRII(pbPace, actualPace));
+  }
+  const ms = now() - t0;
+  const hex = (v: number) => (v >>> 0).toString(16).padStart(8, '0');
+  const hash = hex(h1) + hex(h2);
+  return {
+    evaluations,
+    hash,
+    ms,
+    matchesReference: evaluations === DETERMINISM_REFERENCE.evaluations ? hash === DETERMINISM_REFERENCE.hash : null,
   };
 }

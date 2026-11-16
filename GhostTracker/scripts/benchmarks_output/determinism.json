@@ -1,0 +1,14 @@
+{
+  "evaluations": 1000000,
+  "hash": "1ca3436b7154fb59",
+  "ms": 112,
+  "matchesPinnedReference": true,
+  "machine": {
+    "cpu": "Intel(R) Core(TM) i5-10200H CPU @ 2.40GHz",
+    "cores": 8,
+    "ramGb": 16,
+    "os": "Windows_NT 10.0.26300 (x64)",
+    "node": "v24.6.0",
+    "measuredAt": "2026-11-16T08:50:08.056Z"
+  }
+}
