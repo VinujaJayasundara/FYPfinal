@@ -21,6 +21,7 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
+import { initialWindowMetrics } from 'react-native-safe-area-context';
 import { formatPace, formatTime, calculateRII, getRIIStatus } from './src/core/algorithms';
 import { formatNPI, getNPIStatus } from './src/core/npiEngine';
 
@@ -56,7 +57,7 @@ import { SyncTab } from './src/screens/SyncTab';
 
 // Components
 import UserBadge from './src/components/UserBadge';
-import FloatingRunIndicator from './src/components/FloatingRunIndicator';
+import FloatingRunIndicator, { RUN_BAR_SPACE } from './src/components/FloatingRunIndicator';
 import GhostRunnerLoader from './src/components/GhostRunnerLoader';
 import BatteryLogger from './src/components/BatteryLogger';
 import RunPeerTracker from './src/components/RunPeerTracker';
@@ -265,6 +266,9 @@ function AppContent() {
   /**
    * Tab press handler with navigation confirmation during active runs.
    */
+  // The floating run bar shows on every tab except Run while a run is recording
+  const runBarShown = run.status === 'running' && activeTab !== 'run';
+
   // Tab the runner asked to switch to during a run (in-app confirm dialog)
   const [pendingTab, setPendingTab] = useState<TabKey | null>(null);
   const handleTabPress = useCallback((tabKey: TabKey) => {
@@ -323,7 +327,7 @@ function AppContent() {
             sync log; unmounting it would stop syncing. The log opens from
             Diagnostics (long-press the title) for debugging. */}
         <ScrollView
-          style={[styles.content, { display: activeTab === 'sync' ? 'flex' : 'none' }]}
+          style={[styles.content, { display: activeTab === 'sync' ? 'flex' : 'none' }, runBarShown && styles.contentBelowRunBar]}
           showsVerticalScrollIndicator={false}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 32, marginBottom: 8 }}>
@@ -335,7 +339,7 @@ function AppContent() {
         </ScrollView>
 
         {activeTab !== 'run' && activeTab !== 'sync' && (
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView style={[styles.content, runBarShown && styles.contentBelowRunBar]} showsVerticalScrollIndicator={false}>
             {activeTab === 'dashboard' && (
               <HomeScreen onStartRun={() => setActiveTab('run')} onOpenProfile={() => setActiveTab('profile')} />
             )}
@@ -540,6 +544,8 @@ const styles = StyleSheet.create({
 
   // Content area wrapping both floating indicator and tab content
   contentArea: { flex: 1, position: 'relative' },
+  // Room for the floating run bar so it does not cover the screen's title
+  contentBelowRunBar: { paddingTop: (StatusBar.currentHeight ?? 24) + 8 + RUN_BAR_SPACE },
 
   // Content
   // Below the status bar (there is no app header any more)
@@ -549,7 +555,9 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 12, paddingTop: 10,
+    // Above the phone's own navigation bar (3-button bar or gesture pill),
+    // which the app draws behind; 12 when the phone reports none
+    paddingBottom: Math.max(Platform.OS === 'ios' ? 28 : 12, (initialWindowMetrics?.insets.bottom ?? 0) + 8), paddingTop: 10,
   },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 4 },
   runButton: {

@@ -23,6 +23,8 @@ export interface RunHistoryItem {
   raceOutcome: 'win' | 'loss' | 'tie' | 'none' | null;
   /** 1-based number among valid runs (null = too short to score). */
   runNo: number | null;
+  /** Recorded with Strava and imported (not recorded by EquiStride). */
+  imported?: boolean;
 }
 
 export type RunKindFilter = 'all' | 'solo' | 'peer';

@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
+  StatusBar,
 } from 'react-native';
 import { useRun } from '../context/RunContext';
 import { formatTime } from '../core/algorithms';
@@ -30,6 +31,12 @@ const C = {
   red: colors.danger,
 };
 
+/** Below the status bar and camera notch (the app draws behind the status bar). */
+const BAR_TOP = (StatusBar.currentHeight ?? 24) + 6;
+const HIDDEN_Y = -(BAR_TOP + 80);
+/** Space the screens leave at the top while the bar is showing (bar height + gap). */
+export const RUN_BAR_SPACE = 52;
+
 interface FloatingRunIndicatorProps {
   /** Whether the Run tab is currently visible */
   isRunTabActive: boolean;
@@ -44,7 +51,7 @@ export default function FloatingRunIndicator({
   const { run } = useRun();
 
   // Animated slide-in value
-  const slideAnim = useRef(new Animated.Value(-80)).current;
+  const slideAnim = useRef(new Animated.Value(HIDDEN_Y)).current;
   // Pulsing dot animation
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -53,7 +60,7 @@ export default function FloatingRunIndicator({
   // Slide in / out
   useEffect(() => {
     Animated.spring(slideAnim, {
-      toValue: shouldShow ? 0 : -80,
+      toValue: shouldShow ? 0 : HIDDEN_Y,
       useNativeDriver: true,
       tension: 80,
       friction: 12,
@@ -126,7 +133,7 @@ export default function FloatingRunIndicator({
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    top: 0,
+    top: BAR_TOP,
     left: 16,
     right: 16,
     zIndex: 100,

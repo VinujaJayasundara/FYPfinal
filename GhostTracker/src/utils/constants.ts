@@ -39,6 +39,15 @@ export const GHOST_CHECKPOINT_INTERVAL_M = 10;
  */
 export const MIN_SCORED_DISTANCE_M = 200;
 
+/**
+ * Route id of runs recorded with another app (Strava) and imported from the
+ * laptop. They are shown with an "Imported from Strava" mark, are scored with
+ * the app's own pipeline and count for the personal baseline, but the PB,
+ * ghost and leaderboard only use the app's own route, so imported runs never
+ * reach them (and are never synced).
+ */
+export const IMPORTED_STRAVA_ROUTE_ID = 'imported-strava';
+
 // ============================================================
 // BLE Constants (Phase 4)
 // ============================================================

@@ -229,6 +229,7 @@ export function Button({
   onPress,
   variant = 'primary',
   icon,
+  iconSize,
   size = 'md',
   disabled,
   loading,
@@ -239,6 +240,8 @@ export function Button({
   onPress: () => void;
   variant?: ButtonVariant;
   icon?: IconName;
+  /** Icon size override (default 18, or 16 for small buttons). */
+  iconSize?: number;
   size?: 'md' | 'sm';
   disabled?: boolean;
   loading?: boolean;
@@ -264,7 +267,7 @@ export function Button({
         <ActivityIndicator size="small" color={c.fg} />
       ) : (
         <>
-          {icon ? <Icon name={icon} size={size === 'sm' ? 16 : 18} color={c.fg} /> : null}
+          {icon ? <Icon name={icon} size={iconSize ?? (size === 'sm' ? 16 : 18)} color={c.fg} /> : null}
           <Text style={[type.button as TextStyle, size === 'sm' && { fontSize: 14 }, { color: c.fg }]} numberOfLines={1}>
             {label}
           </Text>

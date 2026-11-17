@@ -357,7 +357,7 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
             return (
               <Card key={r.sessionId} onPress={() => setOpen(r)} style={styles.runRow}>
                 <IconCircle light size={48}>
-                  <Icon name={peer ? 'link' : 'footsteps-outline'} size={20} color={colors.onAccent} />
+                  <Icon name={peer ? 'link' : r.imported ? 'cloud-download-outline' : 'footsteps-outline'} size={20} color={colors.onAccent} />
                 </IconCircle>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.runTitle}>
@@ -367,7 +367,7 @@ export default function HomeScreen({ onStartRun, onOpenProfile }: { onStartRun: 
                     {fmtDuration(r.durationS)}
                   </Text>
                   <T variant="label" numberOfLines={1}>
-                    {fmtWhen(r.startTime)} · {peer ? (r.raceOutcome ? `race vs ${r.peers[0].alias}` : `with ${r.peers[0].alias}`) : 'solo'}
+                    {fmtWhen(r.startTime)} · {peer ? (r.raceOutcome ? `race vs ${r.peers[0].alias}` : `with ${r.peers[0].alias}`) : r.imported ? 'imported from Strava' : 'solo'}
                   </T>
                 </View>
                 {/* the card handles the tap; the chevron uses the shared icon-button look */}

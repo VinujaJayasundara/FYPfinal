@@ -61,6 +61,7 @@ function fmtKm(m: number): string {
 }
 
 function peerLabel(r: RunHistoryItem): string {
+  if (r.imported) return 'IMPORTED FROM STRAVA';
   if (!isPeerRun(r)) return 'SOLO';
   const race = r.peers.find(p => p.kind === 'race');
   const names = r.peers.map(p => p.alias).join(', ');
@@ -147,6 +148,12 @@ export function RunDetail({ run, baselinePace, onClose }: { run: RunHistoryItem;
           </Text>
         )}
         {run.isPB && <Text style={styles.pbLine}>Personal best on this route</Text>}
+        {run.imported && (
+          <Text style={styles.importedLine}>
+            Recorded with Strava and imported. Scored with EquiStride's own GPS filter and NPI model; never used for the
+            PB, ghost or leaderboard, and never shared.
+          </Text>
+        )}
 
         <RunScores
           runNo={run.runNo}
@@ -317,4 +324,5 @@ const styles = StyleSheet.create({
   statLabel: { fontFamily: 'Urbanist_400Regular', color: C.dim, fontSize: 12, marginTop: 2 },
   raceLine: { fontSize: 15, fontFamily: 'Urbanist_700Bold', marginTop: 12 },
   pbLine: { color: SOLO_COLOR, fontSize: 14, fontFamily: 'Urbanist_600SemiBold', marginTop: 8 },
+  importedLine: { color: colors.textDim, fontSize: 13, lineHeight: 18, fontFamily: 'Urbanist_500Medium', marginTop: 8 },
 });

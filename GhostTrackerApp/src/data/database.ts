@@ -8,7 +8,7 @@
  */
 
 import * as SQLite from 'expo-sqlite';
-import { MIN_SCORED_DISTANCE_M } from '../../../GhostTracker/src/utils/constants';
+import { IMPORTED_STRAVA_ROUTE_ID, MIN_SCORED_DISTANCE_M } from '../../../GhostTracker/src/utils/constants';
 import {
   migrateDatabase,
   PRAGMAS_SQL,
@@ -759,10 +759,11 @@ export async function getRunHistory(): Promise<RunHistoryItem[]> {
     npi_score: number | null;
     rii_score: number | null;
     is_pb: number;
+    route_id: string;
     span_ms: number | null;
   }>(
     `SELECT s.session_id, s.start_time, s.end_time, s.total_distance, s.avg_pace_s_per_km, s.npi_score,
-            s.rii_score, s.is_pb,
+            s.rii_score, s.is_pb, s.route_id,
             (SELECT MAX(g.timestamp) - MIN(g.timestamp) FROM gps_points g WHERE g.session_id = s.session_id) AS span_ms
      FROM sessions s WHERE s.end_time IS NOT NULL`,
   );
@@ -813,6 +814,7 @@ export async function getRunHistory(): Promise<RunHistoryItem[]> {
       isPB: s.is_pb === 1,
       peers: runPeers,
       raceOutcome: race ? (race.outcome as RunHistoryItem['raceOutcome']) : null,
+      imported: s.route_id === IMPORTED_STRAVA_ROUTE_ID,
     };
   });
   return numberRuns(items);

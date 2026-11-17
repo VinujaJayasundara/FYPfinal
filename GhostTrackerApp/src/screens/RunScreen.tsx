@@ -347,7 +347,16 @@ function IdleView({
             </T>
             <OfflineMapButton location={initialLocation} inline />
           </Card>
-          <Button label="Start" icon="play" onPress={onStart} accessibilityLabel="Start run" style={styles.preStart} />
+          {/* Own icons, so it does not look like the play button in the tab bar:
+              a stopwatch for a solo run, a flag for a race with a friend */}
+          <Button
+            label={race ? 'Start race' : 'Start'}
+            icon={race ? 'flag' : 'stopwatch'}
+            iconSize={36}
+            onPress={onStart}
+            accessibilityLabel={race ? 'Start race' : 'Start run'}
+            style={styles.preStart}
+          />
         </View>
       </ScrollView>
 
