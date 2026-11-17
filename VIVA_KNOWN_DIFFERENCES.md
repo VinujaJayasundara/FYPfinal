@@ -33,16 +33,16 @@ The thesis text was fixed on 29 Oct, but the code and the measurements kept impr
 
 | Thesis claim | What was really measured | Status |
 |---|---|---|
-| Inference 0.04 ms | **≈ 89 ns per call** (laptop, Node.js, 300,000 calls); 5.6 µs on an emulator | Phone value pending (Diagnostics screen) |
-| WAL 1.12 ms vs rollback 14.80 ms (13.2×) | **0.055 ms vs ≈ 3.3 ms, ≈ 60×** (laptop); 7.5 vs 34.4 ms, 4.6× (emulator) | Phone value pending |
+| Inference 0.04 ms | **≈ 89 ns per call** (laptop, Node.js, 300,000 calls); 5.6 µs on an emulator; **phones: OnePlus 7 1.05 µs, Samsung Galaxy A03s 4.87 µs** (mean per call from batches, Diagnostics, 17 Nov, plugged in over USB) | Measured. Well under the 0.04 ms (40 µs) target on all |
+| WAL 1.12 ms vs rollback 14.80 ms (13.2×) | **0.055 ms vs ≈ 3.3 ms, ≈ 60×** (laptop); 7.5 vs 34.4 ms, 4.6× (emulator); **phones: OnePlus 7 1.99 vs 12.07 ms, 6.1×; Samsung A03s 5.90 vs 18.23 ms, 3.1×** (mean per insert, 1,000 rows, last of 3 runs, plugged in over USB) | Measured. WAL is faster everywhere, but by less than 13.2× on phones |
 | 8 physical BLE nodes converge in 1.42–9.46 s | **Simulation** of the real gossip code: 8 nodes at 15 % loss, mean 2.56 rounds (≤ 6.4 s); at 30 % loss ≤ 12.1 s, **which misses the 10 s target**. Real Bluetooth sync works on 2 emulators and 2 phones (OnePlus 7, POCO X3 NFC). | Timed phone trials pending |
 | Frame sizes 128 / 210 / 298 / 384 B, 353-byte payload | **171 B for one entry, + 88.8 B per extra entry**; 16-byte state hash. One 512-byte frame holds up to 4 entries; larger payloads are split into frames. | Measured from the real encoder |
 | GPS field trials in 3 cities (0.37 / 0.50 / 0.64 % error) | Not done. One real 2 km two-phone test showed one phone 32 m ahead from GPS noise. That led to the Kalman pipeline (section 3). | One known-distance route pending |
 | Battery < 6.8 %/h | Battery logger built (`BatteryLogger`); no 30-minute measurement yet | Pending |
 | 60 FPS / < 16 ms rendering | Not measured | Future work |
 | "0 bytes" to the WAN (Wireshark) | By design and by tests: **no coordinates in any sync, race or leaderboard message**. No packet capture was done. | Code inspection + unit tests |
-| Bit-identical results on ARM64 vs x86 (1,000,000 evaluations) | **Now testable:** laptop hash `1ca3436b7154fb59` pinned in a test; the phone computes the same hash in Diagnostics → CHECK BIT-IDENTICAL | Phone value pending |
-| Lab equipment: Ellisys analyzer, Monsoon monitor, Garmin 945, Nedo wheel, nRF52840 dongles; 6 handsets, 6 operators | Not used. Real equipment: development laptop, Android emulators, OnePlus 7, POCO X3 NFC | — |
+| Bit-identical results on ARM64 vs x86 (1,000,000 evaluations) | **Confirmed:** laptop (x86_64) hash `1ca3436b7154fb59`, pinned in a test. **OnePlus 7 and Samsung A03s (ARM64) give the same hash: all 3,000,000 values bit-identical** (Diagnostics, 17 Nov) | Measured on 2 phones |
+| Lab equipment: Ellisys analyzer, Monsoon monitor, Garmin 945, Nedo wheel, nRF52840 dongles; 6 handsets, 6 operators | Not used. Real equipment: development laptop, Android emulators, OnePlus 7, POCO X3 NFC, Samsung Galaxy A03s | — |
 
 **What to say:** "Those values were the targets and the planned protocol. I didn't have the lab equipment. What I measured is labelled laptop, emulator, phone or simulation, and I don't mix them."
 
