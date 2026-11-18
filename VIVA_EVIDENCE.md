@@ -20,7 +20,7 @@ Every value says where it was measured. **Laptop** = development laptop (Intel i
 | 8-node convergence | ≤ 10 s | 6.4 s at 15 % loss; 12.1 s at 30 % loss | Simulation | ⚠️ Met at 15 %, missed at 30 % |
 | Payload fits a BLE frame (NFR-04) | 512 B frame | 171 B for 1 entry; ≤ 4 entries per frame | Real encoder | ✅ Met |
 | No coordinates leave the phone (NFR-06) | 0 bytes | No coordinate fields in any message | Unit tests | ✅ By design; no packet capture |
-| Battery drain (ST-05) | < 6.8 %/h | Logger works; no run ≥ 10 min yet | Phones | ❌ Not measured |
+| Battery drain (ST-05) | < 6.8 %/h | Whole phone 9.8 %/h; app ≈ 6.6 %/h (one 30-min run, Bluetooth off) | Phone (OnePlus 7) | ⚠️ Partly met |
 
 ---
 
@@ -122,9 +122,12 @@ Unit tests check that race snapshots, leaderboard sync and control messages cont
 
 | What | Status |
 |---|---|
-| Battery logger | Built and working. It records battery % at the start, every 60 s and at the end of a run, with the Bluetooth state. It flags runs that were charging. The OnePlus holds 87 samples. |
-| Drain rate | **Not measured.** A rate is shown only for runs of 10 minutes or more, and no logged run is that long yet. The longest was 6 min (98 % → 97 %). |
-| Thesis claim < 6.8 %/h | **Unsupported until a 30-minute run with Bluetooth on is logged.** |
+| Battery logger | Built and working. It records battery % at the start, every 60 s and at the end of a run, with the Bluetooth state. It flags runs that were charging. |
+| The run | OnePlus 7, 18 Nov 2026, 01:28–01:59 UTC: 1,830 s (30.5 min), 26 samples, unplugged, not in low-power mode, Bluetooth sync **off**. |
+| Whole-phone drain | 99 % → 94 % = **9.8 %/h**. Android reports whole percents, so the error is about ±2 %/h. This includes the screen, GPS and everything else running. |
+| App's share | Android's own estimate (`dumpsys batterystats`, app UID u0a59): **≈ 6.6 %/h including the screen**, ≈ 2.7 %/h without it. These are Android estimates, not a power-monitor reading. |
+| Thesis claim < 6.8 %/h | **Partly met.** The app's share is just under the target; the whole phone is above it. Bluetooth was off, so the sync cost is not included. One run on one phone. |
+| Raw files | `battery_log_OnePlus7_18Nov.csv` (app export) and `android_batterystats_OnePlus7_18Nov.txt`, kept outside the repo in the viva folder. |
 
 ---
 
@@ -142,10 +145,10 @@ Unit tests check that race snapshots, leaderboard sync and control messages cont
 
 ## 5. Not yet measured
 
-1. **Battery:** one 30-minute run, phone unplugged, Bluetooth on.
+1. **Battery with Bluetooth on:** the 30-minute run had sync off. Repeat with sync on, with the screen off, and on more phones.
 2. **More Bluetooth trials:** the plan was 20. There are 4 so far.
 3. **Rendering at 60 FPS:** not measured (future work).
 4. **Packet capture:** not done. Privacy rests on code inspection and tests.
 5. **Lab equipment** (Ellisys analyzer, Monsoon power monitor, measuring wheel, 6 handsets): not used.
 
-**What to say:** "Everything here is labelled by where it was measured: laptop, emulator, phone or simulation. The phone results support the claims about calculation time, bit-identical scoring and Bluetooth sync time for two phones. WAL is faster, but by less than I wrote. Eight-node convergence is a simulation. Battery is not measured yet."
+**What to say:** "Everything here is labelled by where it was measured: laptop, emulator, phone or simulation. The phone results support the claims about calculation time, bit-identical scoring and Bluetooth sync time for two phones. WAL is faster, but by less than I wrote. Eight-node convergence is a simulation. Battery was measured on one 30-minute run with Bluetooth off: the phone used 9.8 % an hour, and Android puts the app's share at about 6.6 %, just under my 6.8 % target. The Bluetooth cost still needs measuring."
